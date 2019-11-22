@@ -33,6 +33,7 @@ class m46(nn.Module):
             ('predictions', nn.Linear(2048, 1)),
         ]))
 
+        self.loss_function = nn.L1Loss()
         self._initialize_weights()
 
     def _vgg_block(self, in_channels, out_channels, block_num, kernel_size=3):
@@ -65,10 +66,13 @@ class m46(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x, labels=None):
         x = self.convolution(x)
-        x = self.fcc(x)
-        return x
+        outputs = self.fcc(x)
+        if labels is not None:
+            loss = self.loss_function(outputs, labels)
+            outputs = outputs, loss
+        return outputs
 
 
 if __name__ == '__main__':

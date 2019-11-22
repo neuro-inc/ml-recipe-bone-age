@@ -14,19 +14,19 @@ class Crop(object):
         crop_size (tuple): Desired output size.
     """
 
-    def __init__(self, center, crop_size):
-        assert isinstance(center, tuple)
+    def __init__(self, crop_center, crop_size):
+        assert isinstance(crop_center, tuple)
         assert isinstance(crop_size, tuple)
-        assert len(center) == 2
+        assert len(crop_center) == 2
         assert len(crop_size) == 2
-        self.center = center
+        self.crop_center = crop_center
         self.crop_size = crop_size
 
     def __call__(self, sample):
         image = sample['image']
 
-        top = self.center[0] - self.crop_size[0] // 2
-        left = self.center[1] - self.crop_size[1] // 2
+        top = self.crop_center[0] - self.crop_size[0] // 2
+        left = self.crop_center[1] - self.crop_size[1] // 2
         image = image[top: top + self.crop_size[0],
                 left: left + self.crop_size[1]]
         sample.update({'image': image})
@@ -56,6 +56,8 @@ class ToTensor(object):
 
     def __call__(self, sample):
         image, label = sample['image'], sample['label']
+
+        label = np.expand_dims(label, axis=1).astype(np.float32)
 
         # numpy image: H x W x C, torch image: C x H x W
         image = np.expand_dims(image, axis=0)
@@ -92,7 +94,7 @@ def get_transform(augmentation=True, crop_dict=None, scale=None):
     if augmentation:
         transform_list.append(Augmentation())
     if crop_dict:
-        transform_list.append(Crop(center=crop_dict['center'], crop_size=crop_dict['crop_size']))
+        transform_list.append(Crop(crop_center=crop_dict['crop_center'], crop_size=crop_dict['crop_size']))
     if scale:
         transform_list.append(Scale(scale))
     transform_list.append(ToTensor())

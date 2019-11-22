@@ -2,7 +2,7 @@
 
 # Description
 
-This project concerns the problem of paediatric bone age assessment. During organism development, 
+In this project we introduce the problem of paediatric bone age assessment. During organism development, 
 the bones of the skeleton change in size and shape,
 and thus a difference between a child’s assigned bone and chronological ages
 might indicate a growth problem. Clinicians use bone 
@@ -10,18 +10,21 @@ age assessment in order to estimate the maturity of a child’s skeletal system.
 usually starts with taking a single X-ray image of the left hand from the wrist to
 fingertips. Traditionally, bones in the radiograph are compared with images
 in a standardized atlas of bone development. This recipe represents a core approach 
-as described in "Paediatric Bone Age Assessment Using Deep Convolutional Neural Networks" by 
+described in "Paediatric Bone Age Assessment Using Deep Convolutional Neural Networks" by 
 V. Iglovikov, A. Rakhlin, A. Kalinin and A. Shvets, [link 1](https://link.springer.com/chapter/10.1007%2F978-3-030-00889-5_34), 
 [2](https://www.biorxiv.org/content/biorxiv/early/2018/06/20/234120.full.pdf). 
-We validate the performance of this method using the data from
+We validate the performance of the method using the data from
 the 2017 Pediatric Bone Age Challenge organized by the Radiological Society of
 North America (RSNA). The data set has been contributed by 3 medical centers at Stanford University, 
 the University of Colorado and the University of California - Los Angeles. Originally, the dataset was
 shared by the AIMI Center of Stanford University and now can be freely accessed 
-at [Kaggle platform](https://kaggle.com/kmader/rsna-bone-age). For the sake of simplicity we skip the peprocessing
-steps as described in the original work and provide the radiographs with already removed background 
-and registered images.    
+at [Kaggle platform](https://kaggle.com/kmader/rsna-bone-age). For the sake of simplicity we skip intensive peprocessing
+steps as described in the original work and provide the images with already removed background 
+and registered hand radiographs.    
 
+![](data/1381_original.png) 
+![](data/1381_preprocessed.png)  
+*Original and preprocessed radiographs of a hand of 82 month old (approx. 7 y.o.) girl*
 
 # Quick Start
 

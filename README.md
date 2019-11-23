@@ -2,7 +2,7 @@
 
 # Description
 
-In this project we introduce the problem of paediatric bone age assessment. During organism development, 
+In this project, we introduce the problem of paediatric bone age assessment. During organism development, 
 the bones of the skeleton change in size and shape,
 and thus a difference between a child’s assigned bone and chronological ages
 might indicate a growth problem. Clinicians use bone 
@@ -10,20 +10,20 @@ age assessment in order to estimate the maturity of a child’s skeletal system.
 usually starts with taking a single X-ray image of the left hand from the wrist to
 fingertips. Traditionally, bones in the radiograph are compared with images
 in a standardized atlas of bone development. This recipe represents a core approach 
-described in "Paediatric Bone Age Assessment Using Deep Convolutional Neural Networks" by 
-V. Iglovikov, A. Rakhlin, A. Kalinin and A. Shvets, [link 1](https://link.springer.com/chapter/10.1007%2F978-3-030-00889-5_34), 
+described in _"Paediatric Bone Age Assessment Using Deep Convolutional Neural Networks" by 
+V. Iglovikov, A. Rakhlin, A. Kalinin and A. Shvets_, [link 1](https://link.springer.com/chapter/10.1007%2F978-3-030-00889-5_34), 
 [2](https://www.biorxiv.org/content/biorxiv/early/2018/06/20/234120.full.pdf). 
 We validate the performance of the method using the data from
 the 2017 Pediatric Bone Age Challenge organized by the Radiological Society of
 North America (RSNA). The data set has been contributed by 3 medical centers at Stanford University, 
 the University of Colorado and the University of California - Los Angeles. Originally, the dataset was
 shared by the AIMI Center of Stanford University and now can be freely accessed 
-at [Kaggle platform](https://kaggle.com/kmader/rsna-bone-age). For the sake of simplicity we skip intensive peprocessing
-steps as described in the original work and provide the images with already removed background 
-and registered hand radiographs.    
+at [Kaggle platform](https://kaggle.com/kmader/rsna-bone-age). For the sake of simplicity we skip intense peprocessing
+steps as described in the original work and provide radiographs with already removed background 
+and uniformly registered hands.    
 
-![](data/1381_original.png) 
-![](data/1381_preprocessed.png)  
+![](./data/1381_original.png) 
+![](./data/1381_preprocessed.png)  
 *Original and preprocessed radiographs of a hand of 82 month old (approx. 7 y.o.) girl*
 
 # Quick Start
@@ -37,7 +37,7 @@ neuro login
 ##### 2. Run the recipe
 ```shell
 git clone git@github.com:neuromation/ml-recipe-bone-age.git
-cd ml-recipe-object-detection
+cd ml-recipe-bone-age
 make setup
 make jupyter
 ```
@@ -50,10 +50,10 @@ This project is designed to run on [Neuro Platform](https://neu.ro), so you can 
 
 | Local directory                      | Description       | Storage URI                                                                  | Environment mounting point |
 |:------------------------------------ |:----------------- |:---------------------------------------------------------------------------- |:-------------------------- | 
-| `data/`                              | Data              | `storage:ml-recipe-bone-age/data/`                              | `/bone-age-assessment/data/` | 
-| `code/` | Python modules    | `storage:ml-recipe-bone-age/bone-age-code/` | `/ml-recipe-bone-age/bone-age-code/` |
-| `notebooks/`                         | Jupyter notebooks | `storage:ml-recipe-bone-age/notebooks/`                         | `/bone-age-assessment/notebooks/` |
-| No directory                         | Logs and results  | `storage:ml-recipe-bone-age/results/`                           | `/bone-age-assessment/results/` |
+| `data/`                              | Data              | `storage:ml-recipe-bone-age/data/`                              | `/ml-recipe-bone-age/data/` | 
+| `bone-age-code/` | Python modules    | `storage:ml-recipe-bone-age/bone-age-code/` | `/ml-recipe-bone-age/bone-age-code/` |
+| `notebooks/`                         | Jupyter notebooks | `storage:ml-recipe-bone-age/notebooks/`                         | `/ml-recipe-bone-age/notebooks/` |
+| No directory                         | Logs and results  | `storage:ml-recipe-bone-age/results/`                           | `/ml-recipe-bone-age/results/` |
 
 ## Development
 

@@ -25,23 +25,23 @@ def train_one_epoch(model: nn.Module,
     for i, data in enumerate(data_loader, 1):
 
         # Format batch
-        inputs, labels = data['image'], data['label']
-        inputs = inputs.to(device)
-        labels = labels.to(device)
+        input_batch, label_batch = data['image'], data['label']
+        input_batch = input_batch.to(device)
+        label_batch = label_batch.to(device)
 
         # zero the parameter gradients
         model.zero_grad()
 
         # forward + backward + optimize
-        outputs = model(inputs, labels)
+        outputs = model(input_batch, label_batch)
         prediction, loss = outputs
 
         loss.backward()
         optimizer.step()
 
         # statistics
-        running_loss += loss.item() * inputs.size(0)
-        dataset_size += inputs.size(0)
+        running_loss += loss.item() * input_batch.size(0)
+        dataset_size += input_batch.size(0)
 
     epoch_loss = running_loss / dataset_size
     print(f'Train loss: {epoch_loss:.4f}')
@@ -50,30 +50,38 @@ def train_one_epoch(model: nn.Module,
 
 def evaluate(model: nn.Module,
              data_loader: DataLoader,
-             device: torch.device) -> float:
+             device: torch.device) -> (float, Dict[str, np.array]):
     model.eval()  # Set model to evaluate mode
     running_loss = 0.0
     dataset_size = 0
+    predictions = []
+    true_labels = []
 
     for i, data in enumerate(data_loader, 1):
 
         # Format batch
-        inputs, labels = data['image'], data['label']
-        inputs = inputs.to(device)
-        labels = labels.to(device)
+        input_batch, label_batch = data['image'], data['label']
+        input_batch = input_batch.to(device)
+        label_batch = label_batch.to(device)
 
         # forward
         with torch.set_grad_enabled(False):
-            outputs = model(inputs, labels)
+            outputs = model(input_batch, label_batch)
             prediction, loss = outputs
 
         # statistics
-        running_loss += loss.item() * inputs.size(0)
-        dataset_size += inputs.size(0)
+        running_loss += loss.item() * input_batch.size(0)
+        dataset_size += input_batch.size(0)
+
+        predictions.append(prediction)
+        true_labels.append(label_batch)
 
     epoch_loss = running_loss / dataset_size
     print(f'Eval loss: {epoch_loss:.4f}')
-    return epoch_loss
+
+    predictions = torch.cat(predictions, 0).cpu().numpy()
+    true_labels = torch.cat(true_labels, 0).cpu().numpy()
+    return epoch_loss, {'true_labels': true_labels, 'predictions': predictions}
 
 
 def train(model: nn.Module,
@@ -105,7 +113,7 @@ def train(model: nn.Module,
         print('-' * len(epoch_stamp))
 
         train_loss = train_one_epoch(model, optimizer, dataloaders['train'], device)
-        val_loss = evaluate(model, dataloaders['val'], device)
+        val_loss, _ = evaluate(model, dataloaders['val'], device)
 
         if val_loss < best_loss:
             best_loss = val_loss

@@ -18,9 +18,11 @@ from pathlib import Path
 def train_one_epoch(model: nn.Module,
                     optimizer: torch.optim.Optimizer,
                     data_loader: DataLoader,
-                    device: torch.device) -> float:
+                    device: torch.device,
+                    output_accuracy: bool = False) -> float:
     model.train()  # Set model to training mode
     running_loss = 0.0
+    correct = 0
     dataset_size = 0
     for i, data in enumerate(data_loader, 1):
 
@@ -41,19 +43,26 @@ def train_one_epoch(model: nn.Module,
 
         # statistics
         running_loss += loss.item() * input_batch.size(0)
+        correct += (torch.round(prediction) == label_batch).sum().item()
         dataset_size += input_batch.size(0)
 
     epoch_loss = running_loss / dataset_size
-    print(f'Train loss: {epoch_loss:.4f}')
+    epoch_accuracy = correct / dataset_size
+    if output_accuracy:
+        print(f'Train loss: {epoch_loss:.4f}, accuracy: {epoch_accuracy:.2f}')
+    else:
+        print(f'Train loss: {epoch_loss:.4f}')
     return epoch_loss
 
 
 def evaluate(model: nn.Module,
              data_loader: DataLoader,
-             device: torch.device) -> (float, Dict[str, np.array]):
+             device: torch.device,
+             output_accuracy: bool = False) -> (float, Dict[str, np.array]):
     model.eval()  # Set model to evaluate mode
     running_loss = 0.0
     dataset_size = 0
+    correct = 0
     predictions = []
     true_labels = []
 
@@ -71,13 +80,18 @@ def evaluate(model: nn.Module,
 
         # statistics
         running_loss += loss.item() * input_batch.size(0)
+        correct += (torch.round(prediction) == label_batch).sum().item()
         dataset_size += input_batch.size(0)
 
         predictions.append(prediction)
         true_labels.append(label_batch)
 
     epoch_loss = running_loss / dataset_size
-    print(f'Eval loss: {epoch_loss:.4f}')
+    epoch_accuracy = correct / dataset_size
+    if output_accuracy:
+        print(f'Eval loss: {epoch_loss:.4f}, accuracy: {epoch_accuracy:.2f}')
+    else:
+        print(f'Eval loss: {epoch_loss:.4f}')
 
     predictions = torch.cat(predictions, 0).cpu().numpy()
     true_labels = torch.cat(true_labels, 0).cpu().numpy()
@@ -91,7 +105,7 @@ def train(model: nn.Module,
           device: torch.device,
           prev_epoch: Optional[int],
           prev_loss: Optional[float],
-          ) -> List[Tuple]:
+          output_accuracy: bool = False) -> List[Tuple]:
 
     # Learning rate for optimizers
     # lr = 5e-5
@@ -112,8 +126,8 @@ def train(model: nn.Module,
         print(epoch_stamp)
         print('-' * len(epoch_stamp))
 
-        train_loss = train_one_epoch(model, optimizer, dataloaders['train'], device)
-        val_loss, _ = evaluate(model, dataloaders['val'], device)
+        train_loss = train_one_epoch(model, optimizer, dataloaders['train'], device, output_accuracy=output_accuracy)
+        val_loss, _ = evaluate(model, dataloaders['val'], device, output_accuracy=output_accuracy)
 
         if val_loss < best_loss:
             best_loss = val_loss
@@ -134,9 +148,11 @@ def main(data_dir: Path, preprocessing_args: Dict,
          prev_ckpt: Optional[Path],
          model_save_dir: Path,
          n_epoch: int, batch_size: int,
-         n_workers: int, n_gpu: int
+         n_workers: int, n_gpu: int,
+         model_type: str = 'age',
          ) -> None:
-    model_save_path = model_save_dir / f'boneage.epoch{{epoch:02d}}-err{{epoch_loss:.3f}}.pth'
+    model_prefix = 'bone_gender' if model_type == 'gender' else 'bone_age'
+    model_save_path = model_save_dir / f'{model_prefix}.epoch{{epoch:02d}}-err{{epoch_loss:.3f}}.pth'
     crop_dict = preprocessing_args['crop_dict']
     scale = preprocessing_args['scale']
     input_shape = preprocessing_args['input_shape']
@@ -150,7 +166,7 @@ def main(data_dir: Path, preprocessing_args: Dict,
     device = torch.device('cuda:0' if (torch.cuda.is_available() and n_gpu > 0) else 'cpu')
 
     # Create the model
-    model = m46(input_shape, n_gpu).to(device)
+    model = m46(input_shape, n_gpu, model_type=model_type).to(device)
     if prev_ckpt is not None:
         model.load_state_dict(torch.load(prev_ckpt))
         print('Model loaded from', prev_ckpt)
@@ -172,7 +188,9 @@ def main(data_dir: Path, preprocessing_args: Dict,
     }
     datasets = {
         phase: BoneAgeDataset(bone_age_frame=data_frames[phase], root=data_dir,
-                              transform=transforms[phase], target_transform=normalize_target)
+                              transform=transforms[phase],
+                              target_transform=None if model_type == 'gender' else normalize_target,
+                              model_type=model_type)
         for phase in ['train', 'val']
     }
     dataloaders = {
@@ -185,7 +203,8 @@ def main(data_dir: Path, preprocessing_args: Dict,
           save_path=model_save_path,
           n_epoch=n_epoch,
           device=device,
-          prev_epoch=prev_epoch, prev_loss=prev_loss)
+          prev_epoch=prev_epoch, prev_loss=prev_loss,
+          output_accuracy=model_type == 'gender')
 
 
 def get_parser() -> ArgumentParser:
@@ -199,6 +218,7 @@ def get_parser() -> ArgumentParser:
                         default=Path(__file__).absolute().parent.parent / 'data/train.csv')
     parser.add_argument('--test_fold', type=int, default=10)
     parser.add_argument('--n_folds', type=int, default=10)
+    parser.add_argument('--model_type', type=str, default='age')
     parser.add_argument('--prev_ckpt', type=Path, default=None)
     parser.add_argument('--model_save_dir', type=Path,
                         default=Path(__file__).absolute().parent.parent / 'models')
@@ -222,6 +242,7 @@ if __name__ == '__main__':
     preprocess_args.update(input_shape)
     annotation_csv = args.annotation_csv
     dataset_split = (args.test_fold, args.n_folds)
+    model_type = args.model_type
     prev_ckpt = args.prev_ckpt
     model_save_dir = args.model_save_dir
     n_epoch = args.n_epoch
@@ -235,6 +256,7 @@ if __name__ == '__main__':
         data_dir=data_dir,
         preprocessing_args=preprocess_args,
         annotation_csv=annotation_csv, dataset_split=dataset_split,
+        model_type=model_type,
         prev_ckpt=prev_ckpt,
         model_save_dir=model_save_dir,
         n_epoch=n_epoch,

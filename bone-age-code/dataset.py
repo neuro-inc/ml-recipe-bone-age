@@ -53,19 +53,23 @@ def normalize_target(x, reverse_norm=False):
 class BoneAgeDataset(VisionDataset):
     """Bone Age dataset."""
 
-    def __init__(self, bone_age_frame, root, transform=None, target_transform=None):
+    def __init__(self, bone_age_frame, root, transform=None, target_transform=None, model_type='age'):
         """
         Args:
             bone_age_frame (DataFrame): pandas DataFrame with annotations.
             root (string or Path): directory with all the images.
             transform (callable, optional): optional transform to be applied
                 on a sample.
+            model_type (string): target to predict, can be either boneage or gender
         """
         super(BoneAgeDataset, self).__init__(Path(root), transform=transform,
                                              target_transform=target_transform)
         # make sure all listed radiographs are actually present
         radiographs = [f.stem for f in self.root.glob('*.png')]
         self.bone_age_frame = bone_age_frame.loc[bone_age_frame['id'].isin(radiographs)]
+
+        assert model_type in ['age', 'gender']
+        self.model_type = model_type
 
     def __len__(self):
         return len(self.bone_age_frame)
@@ -76,8 +80,11 @@ class BoneAgeDataset(VisionDataset):
         img_id = self.bone_age_frame['id'].iloc[idx].astype(str)
         img_name = self.root / (img_id + '.png')
         image = cv2.imread(str(img_name), flags=cv2.IMREAD_GRAYSCALE)
-        if 'boneage' in self.bone_age_frame.columns:
+        if (self.model_type == 'age') and ('boneage' in self.bone_age_frame.columns):
             target = self.bone_age_frame['boneage'].iloc[idx]
+            target = np.array(target).astype(np.float32)
+        elif (self.model_type == 'gender') and ('male' in self.bone_age_frame.columns):
+            target = self.bone_age_frame['male'].iloc[idx] * 1.0
             target = np.array(target).astype(np.float32)
         else:
             target = None
@@ -91,22 +98,24 @@ class BoneAgeDataset(VisionDataset):
 
 
 if __name__ == '__main__':
-    df = pd.read_csv('f:/Sandbox/hand/data/train.csv')
+    model_type = 'age'
+    df = pd.read_csv('../data/train.csv')
     nfolds = 9
     for test_fold in range(1, nfolds + 1):
-        train_df, test_df = split_dataset(df, test_fold, nfolds, 'f:/Sandbox/hand/data/fitted_train', gender='m')
+        train_df, test_df = split_dataset(df, test_fold, nfolds, '../data/train', gender='a')
         print(len(train_df), len(test_df))
 
-    crop_dict = {'center': (1040, 800), 'crop_size': (2000, 1500)}
+    crop_dict = {'crop_center': (1040, 800), 'crop_size': (2000, 1500)}
     scale = 0.25
     train_transform = get_transform(augmentation=False, crop_dict=crop_dict, scale=scale)
 
-    bone_age_frame = pd.read_csv('f:/Sandbox/hand/data/train.csv')
-    root_dir = 'f:/Sandbox/hand/data/fitted_train'
+    bone_age_frame = pd.read_csv('../data/train.csv')
+    root_dir = '../data/train'
     train_df, _ = split_dataset(bone_age_frame, 5, 5, root_dir, gender='a')
     boneage_dataset = BoneAgeDataset(bone_age_frame=train_df, root=root_dir,
-                                     transform=train_transform, target_transform=normalize_target)
-
+                                     transform=train_transform,
+                                     target_transform=None if model_type == 'gender' else normalize_target,
+                                     model_type=model_type)
     nimages = 4
     fig = plt.figure(figsize=(18, 8))
     for i, sample in enumerate(islice(boneage_dataset, nimages), 1):
@@ -114,10 +123,17 @@ if __name__ == '__main__':
         if torch.is_tensor(image):
             image = np.squeeze(image.numpy())
             label = label.item()
-        label = normalize_target(label, reverse_norm=True)
+        if model_type == 'age':
+            label = normalize_target(label, reverse_norm=True)
+        elif model_type == 'gender':
+            label = ['female', 'male'][int(label)]
         ax = plt.subplot(1, nimages, i)
-        plt.tight_layout()
-        ax.set_title(f'id {img_id}, {label:n} months\nh, w={image.shape}', fontsize=18)
+        size_stamp = 'x'.join(map(str, image.shape))
+        if model_type == 'age':
+            title = f'id {img_id}, {label:n} months\nh, w={size_stamp}'
+        else:
+            title = f'id {img_id}, {label}\nh, w={size_stamp}'
+        ax.set_title(title, fontsize=18)
         ax.axis('off')
         ax.imshow(image, cmap='Greys_r')
     plt.tight_layout()

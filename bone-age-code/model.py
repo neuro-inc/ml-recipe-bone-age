@@ -4,11 +4,13 @@ import torch.nn as nn
 
 
 class m46(nn.Module):
-    def __init__(self, input_shape, ngpu):
+    def __init__(self, input_shape, ngpu, model_type='age'):
         super(m46, self).__init__()
         self.input_shape = input_shape
         self.nchannel = input_shape[0]
         self.ngpu = ngpu
+        assert model_type in ['age', 'gender']
+        self.model_type = model_type
 
         self.convolution = nn.Sequential(
             self._vgg_block(self.nchannel, 32, 1),  # Block 1
@@ -23,7 +25,7 @@ class m46(nn.Module):
         dummy = torch.randn(1, *input_shape)
         dummy = self.convolution.forward(dummy)
         in_channels = dummy.size()[1:].numel()
-        self.fcc = nn.Sequential(OrderedDict([
+        fcc_layers = OrderedDict([
             ('dropout1', nn.Dropout(p=0.3)),
             ('fc1', nn.Linear(in_channels, 2048)),
             ('elu1', nn.ELU(inplace=True)),
@@ -31,9 +33,15 @@ class m46(nn.Module):
             ('fc2', nn.Linear(2048, 2048)),
             ('elu2', nn.ELU(inplace=True)),
             ('predictions', nn.Linear(2048, 1)),
-        ]))
+        ])
+        if self.model_type == 'gender':
+            fcc_layers['prediction_probs'] = nn.Sigmoid()
+        self.fcc = nn.Sequential(fcc_layers)
 
-        self.loss_function = nn.L1Loss()
+        if self.model_type == 'age':
+            self.loss_function = nn.L1Loss()
+        else:
+            self.loss_function = nn.BCELoss()
         self._initialize_weights()
 
     def _vgg_block(self, in_channels, out_channels, block_num, kernel_size=3):
@@ -84,7 +92,7 @@ if __name__ == '__main__':
 
     # Create the model
     input_shape = (1, 500, 375)
-    model = m46(input_shape, ngpu).to(device)
+    model = m46(input_shape, ngpu, model_type='boneage').to(device)
 
     # Handle multi-gpu if desired
     if (device.type == 'cuda') and (ngpu > 1):

@@ -1,19 +1,19 @@
 ##### PATHS #####
 
 DATA_DIR?=data
-CODE_DIR?=code
+CODE_DIR?=bone-age-code
 NOTEBOOKS_DIR?=notebooks
 RESULTS_DIR?=results
 
 PROJECT_FILES=requirements.txt apt.txt setup.cfg
 
-PROJECT_PATH_STORAGE?=storage:bone-age-assessment
+PROJECT_PATH_STORAGE?=storage:ml-recipe-bone-age
 
-PROJECT_PATH_ENV?=/bone-age-assessment
+PROJECT_PATH_ENV?=/ml-recipe-bone-age
 
 ##### JOB NAMES #####
 
-PROJECT_POSTFIX?=bone-age-assessment
+PROJECT_POSTFIX?=ml-recipe-bone-age
 
 SETUP_JOB?=setup-$(PROJECT_POSTFIX)
 TRAINING_JOB?=training-$(PROJECT_POSTFIX)

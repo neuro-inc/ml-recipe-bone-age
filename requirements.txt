@@ -1,1 +1,4 @@
 tqdm==4.32.1
+opencv-python
+albumentations
+

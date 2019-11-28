@@ -1,1 +1,2 @@
-nano
+libsm6
+libxext6

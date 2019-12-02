@@ -77,9 +77,9 @@ class m46(nn.Module):
     def forward(self, x, labels=None):
         x = self.convolution(x)
         outputs = self.fcc(x)
-        if labels is not None:
-            loss = self.loss_function(outputs, labels)
-            outputs = outputs, loss
+        # if labels is not None:
+        #     loss = self.loss_function(outputs, labels)
+        #     outputs = outputs, loss
         return outputs
 
 

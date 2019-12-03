@@ -7,6 +7,9 @@ from torchvision.datasets import VisionDataset
 import matplotlib.pyplot as plt
 from transforms import get_transform
 from itertools import islice
+from typing import Tuple, Dict
+from argparse import Namespace
+from torch.utils.data import DataLoader
 
 
 def split_dataset(df, test_fold, nfolds, root_dir, gender='a'):
@@ -95,6 +98,34 @@ class BoneAgeDataset(VisionDataset):
         if self.transform is not None:
             sample = self.transform(sample)
         return sample
+
+
+def get_loaders(args: Namespace)-> Tuple[DataLoader, DataLoader, Dict[str, int]]:
+    crop_args = {'crop_center': args.crop_center,
+                 'crop_size': args.crop_size}
+    annotation_frame = pd.read_csv(args.annotation_csv)
+    test_fold, n_folds = args.dataset_split
+    train_df, test_df = split_dataset(annotation_frame, test_fold, n_folds, args.data_dir, gender='a')
+    # train_df = train_df.iloc[:160, :]
+
+    data_frames = {'train': train_df, 'val': test_df}
+    transforms = {
+        phase: get_transform(augmentation=(phase == 'train'), crop_dict=crop_args, scale=args.scale)
+        for phase in ['train', 'val']
+    }
+    datasets = {
+        phase: BoneAgeDataset(bone_age_frame=data_frames[phase], root=args.data_dir,
+                              transform=transforms[phase],
+                              target_transform=None if args.model_type == 'gender' else normalize_target,
+                              model_type=args.model_type)
+        for phase in ['train', 'val']
+    }
+    dataloaders = [
+        DataLoader(datasets[phase], batch_size=args.batch_size, shuffle=(phase == 'train'),
+                   num_workers=args.n_workers)
+        for phase in ['train', 'val']
+    ]
+    return dataloaders
 
 
 if __name__ == '__main__':

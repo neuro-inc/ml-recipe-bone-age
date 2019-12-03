@@ -138,7 +138,7 @@ if __name__ == '__main__':
 
     # Create the model
     input_shape = (1, 500, 375)
-    model = m46(input_shape, ngpu, model_type='boneage').to(device)
+    model = m46(input_shape, model_type='age').to(device)
 
     # Handle multi-gpu if desired
     if (device.type == 'cuda') and (ngpu > 1):

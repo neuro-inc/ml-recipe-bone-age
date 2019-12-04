@@ -51,7 +51,7 @@ This project is designed to run on [Neuro Platform](https://neu.ro), so you can 
 | Local directory                      | Description       | Storage URI                                                                  | Environment mounting point |
 |:------------------------------------ |:----------------- |:---------------------------------------------------------------------------- |:-------------------------- | 
 | `data/`                              | Data              | `storage:ml-recipe-bone-age/data/`                              | `/ml-recipe-bone-age/data/` | 
-| `bone-age-code/` | Python modules    | `storage:ml-recipe-bone-age/bone-age-code/` | `/ml-recipe-bone-age/bone-age-code/` |
+| `src/` | Python modules    | `storage:ml-recipe-bone-age/src/` | `/ml-recipe-bone-age/src/` |
 | `notebooks/`                         | Jupyter notebooks | `storage:ml-recipe-bone-age/notebooks/`                         | `/ml-recipe-bone-age/notebooks/` |
 | No directory                         | Logs and results  | `storage:ml-recipe-bone-age/results/`                           | `/ml-recipe-bone-age/results/` |
 

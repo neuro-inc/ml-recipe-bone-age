@@ -3,6 +3,8 @@ import torch
 import pandas as pd
 import cv2
 import numpy as np
+from const import DATA_PATH
+
 from torchvision.datasets import VisionDataset
 import matplotlib.pyplot as plt
 from transforms import get_transform
@@ -106,7 +108,6 @@ def get_loaders(args: Namespace)-> Tuple[DataLoader, DataLoader, Dict[str, int]]
     annotation_frame = pd.read_csv(args.annotation_csv)
     test_fold, n_folds = args.dataset_split
     train_df, test_df = split_dataset(annotation_frame, test_fold, n_folds, args.data_dir, gender='a')
-    # train_df = train_df.iloc[:160, :]
 
     data_frames = {'train': train_df, 'val': test_df}
     transforms = {
@@ -130,18 +131,18 @@ def get_loaders(args: Namespace)-> Tuple[DataLoader, DataLoader, Dict[str, int]]
 
 if __name__ == '__main__':
     model_type = 'age'
-    df = pd.read_csv('../data/train.csv')
+    bone_age_frame = pd.read_csv(DATA_PATH / 'train.csv')
+    root_dir = DATA_PATH / 'train'
+
     nfolds = 9
     for test_fold in range(1, nfolds + 1):
-        train_df, test_df = split_dataset(df, test_fold, nfolds, '../data/train', gender='a')
+        train_df, test_df = split_dataset(bone_age_frame, test_fold, nfolds, '../data/train', gender='a')
         print(len(train_df), len(test_df))
 
     crop_dict = {'crop_center': (1040, 800), 'crop_size': (2000, 1500)}
     scale = 0.25
     train_transform = get_transform(augmentation=False, crop_dict=crop_dict, scale=scale)
 
-    bone_age_frame = pd.read_csv('../data/train.csv')
-    root_dir = '../data/train'
     train_df, _ = split_dataset(bone_age_frame, 5, 5, root_dir, gender='a')
     boneage_dataset = BoneAgeDataset(bone_age_frame=train_df, root=root_dir,
                                      transform=train_transform,

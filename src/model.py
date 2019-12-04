@@ -48,9 +48,9 @@ class m46(nn.Module):
         self.fcc = nn.Sequential(fcc_layers)
 
         if self.model_type == 'age':
-            self.loss_function = nn.L1Loss()
+            self._loss_function = nn.L1Loss()
         else:
-            self.loss_function = nn.BCELoss()
+            self._loss_function = nn.BCELoss()
         self._initialize_weights()
 
     def _vgg_block(self, in_channels, out_channels, block_num, kernel_size=3):
@@ -100,6 +100,10 @@ class m46(nn.Module):
     def init_params(self) -> Dict[str, Any]:
         return self._params
 
+    @property
+    def loss_function(self) -> nn.modules.Module:
+        return self._loss_function
+
     @classmethod
     def from_ckpt(cls, checkpoint: Path or OrderedDict) -> 'm46':
         ckpt = torch.load(checkpoint, map_location='cpu') if type(checkpoint) == Path else checkpoint
@@ -116,7 +120,7 @@ def convert_checkpoint(checkpoint: Path or OrderedDict,
                        params: Dict[str, Any]) -> Dict[str, Any]:
     """make use of previous checkpoint format"""
 
-    ckpt = torch.load(checkpoint, map_location='cpu')
+    ckpt = torch.load(checkpoint, map_location='cpu') if type(checkpoint) == Path else checkpoint
     updates = {'.predictions.': '.preds.', '.prediction_probs.': '.probs.'}
     for k in list(ckpt):
         upd = next((u for u in updates if u in k), None)

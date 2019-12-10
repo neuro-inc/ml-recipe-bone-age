@@ -102,12 +102,13 @@ class BoneAgeDataset(VisionDataset):
         return sample
 
 
-def get_loaders(args: Namespace)-> Tuple[DataLoader, DataLoader, Dict[str, int]]:
+def get_loaders(args: Namespace)-> Tuple[DataLoader, DataLoader]:
     crop_args = {'crop_center': args.crop_center,
                  'crop_size': args.crop_size}
     annotation_frame = pd.read_csv(args.annotation_csv)
     test_fold, n_folds = args.dataset_split
     train_df, test_df = split_dataset(annotation_frame, test_fold, n_folds, args.data_dir, gender='a')
+    # train_df = train_df.iloc[:160, :]
 
     data_frames = {'train': train_df, 'val': test_df}
     transforms = {

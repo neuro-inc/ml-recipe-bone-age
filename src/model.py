@@ -120,7 +120,7 @@ def convert_checkpoint(checkpoint: Path or OrderedDict,
                        params: Dict[str, Any]) -> Dict[str, Any]:
     """make use of previous checkpoint format"""
 
-    ckpt = torch.load(checkpoint, map_location='cpu') if type(checkpoint) == Path else checkpoint
+    ckpt = torch.load(checkpoint, map_location='cpu') if isinstance(checkpoint, Path) else checkpoint
     updates = {'.predictions.': '.preds.', '.prediction_probs.': '.probs.'}
     for k in list(ckpt):
         upd = next((u for u in updates if u in k), None)

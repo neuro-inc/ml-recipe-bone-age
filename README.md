@@ -22,8 +22,8 @@ at [Kaggle platform](https://kaggle.com/kmader/rsna-bone-age). For the sake of s
 steps as described in the original work and provide radiographs with already removed background 
 and uniformly registered hands.    
 
-![](./data/1381_original.png) 
-![](./data/1381_preprocessed.png)  
+![](./img/1381_original.png) 
+![](./img/1381_preprocessed.png)  
 *Original and preprocessed radiographs of a hand of 82 month old (approx. 7 y.o.) girl*
 
 # Quick Start

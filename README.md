@@ -41,6 +41,11 @@ cd ml-recipe-bone-age
 make setup
 make jupyter
 ```
+##### 3. Train the model
+Download the dataset from within the demo notebook, then run:
+```shell
+make training
+```
 
 # Development Environment
 

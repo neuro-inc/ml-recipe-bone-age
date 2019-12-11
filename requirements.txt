@@ -1,5 +1,5 @@
 tqdm==4.32.1
-opencv-python==4.1.0
+opencv-python==4.1.0.25
 albumentations==0.3.0
 catalyst==19.12
 torch==1.2

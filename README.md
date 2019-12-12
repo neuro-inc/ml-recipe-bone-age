@@ -1,6 +1,4 @@
-# Bone Age Assessment
-
-# Description
+# Pediatric Bone Age Assessment
 
 In this project, we introduce the problem of pediatric bone age assessment. During organism development, the bones of the skeleton change in size and shape, and thus a difference between a child's assigned bone and chronological ages might indicate a growth problem. Clinicians use bone age assessment to estimate the maturity of a child's skeletal system. Bone age assessment usually starts with taking a single X-ray image of the left hand from the wrist to the fingertips. Traditionally, bones in the radiograph are compared with images in a standardized atlas of bone development. 
 

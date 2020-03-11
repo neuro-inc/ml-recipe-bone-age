@@ -28,7 +28,7 @@ jobs:
           command: |
             neuro config login-with-token $NEURO_TOKEN
             neuro config docker
-            export IMAGE_NAME=neuromation/ml-recipe-midi-generator
+            export IMAGE_NAME=neuromation/ml-recipe-bone-age
             export IMAGE_REF=$IMAGE_NAME:$CIRCLE_BUILD_NUM
             export IMAGE_URI=image:$IMAGE_REF
             make setup \
@@ -41,8 +41,8 @@ jobs:
             docker tag $IMAGE_REF $IMAGE_NAME:latest
       - docker/check
       - docker/push:
-          image: neuromation/ml-recipe-midi-generator
-          tag: $CIRCLE_TAG,latest
+          image: neuromation/ml-recipe-bone-age
+          tag: latest
 
 
 workflows:
@@ -53,7 +53,7 @@ workflows:
       - build:
           filters:
             branches:
-              ignore: /.*/
+              ignore: CHANGEME
             tags:
               only:
                 - /.*/

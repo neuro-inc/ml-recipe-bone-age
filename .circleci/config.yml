@@ -1,0 +1,59 @@
+version: 2.1
+
+executors:
+  python:
+    docker:
+      - image: circleci/python:3.7.5-stretch
+
+defaults: &defaults
+  executor: python
+
+orbs:
+  docker: circleci/docker@0.5.20
+
+
+jobs:
+
+  build:
+    <<: *defaults
+    steps:
+      - setup_remote_docker
+      - checkout
+      - run:
+          name: Install Dependencies
+          command: |
+            pip install --user -r .circleci/requirements.txt
+      - run:
+          name: Build Image
+          command: |
+            neuro config login-with-token $NEURO_TOKEN
+            neuro config docker
+            export IMAGE_NAME=neuromation/ml-recipe-midi-generator
+            export IMAGE_REF=$IMAGE_NAME:$CIRCLE_BUILD_NUM
+            export IMAGE_URI=image:$IMAGE_REF
+            make setup \
+                __BAKE_SETUP=yes \
+                CUSTOM_ENV_NAME=$IMAGE_URI \
+                PROJECT_PATH_STORAGE=storage:build-$CIRCLE_BUILD_NUM
+            neuro pull $IMAGE_URI
+            echo "CIRCLE_TAG=$CIRCLE_TAG"
+            docker tag $IMAGE_REF $IMAGE_NAME:$CIRCLE_TAG
+            docker tag $IMAGE_REF $IMAGE_NAME:latest
+      - docker/check
+      - docker/push:
+          image: neuromation/ml-recipe-midi-generator
+          tag: $CIRCLE_TAG,latest
+
+
+workflows:
+  version: 2
+
+  main:
+    jobs:
+      - build:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /.*/

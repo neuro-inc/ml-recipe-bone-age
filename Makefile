@@ -71,8 +71,29 @@ setup: ### Setup remote environment
 	for file in $(PROJECT_FILES); do $(NEURO) cp ./$$file $(PROJECT_PATH_STORAGE)/$$file; done
 	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) "bash -c 'export DEBIAN_FRONTEND=noninteractive && $(APT) update && cat $(PROJECT_PATH_ENV)/apt.txt | xargs -I % $(APT) install --no-install-recommends % && $(APT) clean && $(APT) autoremove && rm -rf /var/lib/apt/lists/*'"
 	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) "bash -c '$(PIP) -r $(PROJECT_PATH_ENV)/requirements.txt'"
+ifdef __BAKE_SETUP
+	make __bake
+endif
 	$(NEURO) --network-timeout 300 job save $(SETUP_JOB) $(CUSTOM_ENV_NAME)
 	$(NEURO) kill $(SETUP_JOB)
+
+.PHONY: __bake
+__bake: upload-code upload-data upload-notebooks
+	echo "#!/usr/bin/env bash" > /tmp/jupyter.sh
+	echo "jupyter notebook \
+            --no-browser \
+            --ip=0.0.0.0 \
+            --allow-root \
+            --NotebookApp.token= \
+            --NotebookApp.default_url=/notebooks/project-local/notebooks/demo.ipynb \
+            --NotebookApp.shutdown_no_activity_timeout=7200 \
+            --MappingKernelManager.cull_idle_timeout=7200 \
+" >> /tmp/jupyter.sh
+	$(NEURO) cp /tmp/jupyter.sh $(PROJECT_PATH_STORAGE)/jupyter.sh
+	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) \
+	    "bash -c 'mkdir /project-local; cp -R -T $(PROJECT_PATH_ENV) /project-local'"
+	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) \
+           "jupyter trust /project-local/notebooks/demo.ipynb"
 
 ##### STORAGE #####
 

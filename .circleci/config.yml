@@ -37,11 +37,12 @@ jobs:
                 PROJECT_PATH_STORAGE=storage:build-$CIRCLE_BUILD_NUM
             neuro pull $IMAGE_URI
             echo "CIRCLE_TAG=$CIRCLE_TAG"
+            docker tag $IMAGE_REF $IMAGE_NAME:$CIRCLE_TAG
             docker tag $IMAGE_REF $IMAGE_NAME:latest
       - docker/check
       - docker/push:
           image: neuromation/ml-recipe-bone-age
-          tag: latest
+          tag: $CIRCLE_TAG,latest
 
 
 workflows:
@@ -52,7 +53,7 @@ workflows:
       - build:
           filters:
             branches:
-              ignore: CHANGEME
+              ignore: /.*/
             tags:
               only:
                 - /.*/

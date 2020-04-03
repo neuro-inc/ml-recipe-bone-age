@@ -56,6 +56,8 @@ class ToTensor(object):
 
     def __call__(self, sample):
         image, label = sample['image'], sample['label']
+        if len(label.shape) == 0:
+            label = np.asarray([label])
 
         label = np.expand_dims(label, axis=1).astype(np.float32)
 

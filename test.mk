@@ -13,7 +13,7 @@ CMD_NBCONVERT=\
   --to=asciidoc \
   --ExecutePreprocessor.timeout=1000 \
   --output=/tmp/out \
-  $(PROJECT_PATH_ENV)/$(NOTEBOOKS_DIR)/inference.ipynb && \
+  $(PROJECT_PATH_ENV)/$(NOTEBOOKS_DIR)/demo.ipynb && \
   echo "Test succeeded: PROJECT_PATH_ENV=$(PROJECT_PATH_ENV) TRAINING_MACHINE_TYPE=$(TRAINING_MACHINE_TYPE)"
 
 

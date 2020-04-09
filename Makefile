@@ -10,7 +10,7 @@ PROJECT_PATH_STORAGE?=storage:ml-recipe-bone-age
 
 PROJECT_PATH_ENV?=/ml-recipe-bone-age
 
-DATA_ROOT_STORAGE=storage:/neuromation/bone-age
+DATA_ROOT_STORAGE=storage:/neuromation/public/ml-recipe-bone-age
 DATA_ROOT_PATH_ENV=/data
 
 ##### JOB NAMES #####
@@ -146,7 +146,7 @@ connect-training:  ### Connect to the remote shell running on the training job
 .PHONY: jupyter
 jupyter: upload-code upload-notebooks ### Run a job with Jupyter Notebook and open UI in the default browser
 	$(NEURO) run \
-		--name $(JUPYTER_JOB) \
+		--name $(JUPYTER_JOB)-2 \
 		--preset $(TRAINING_MACHINE_TYPE) \
 		--http 8888 \
 		$(HTTP_AUTH) \

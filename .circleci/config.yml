@@ -14,31 +14,69 @@ orbs:
 
 jobs:
 
-  build:
+  build_and_test:
     <<: *defaults
+
     steps:
+      - run: &setup_env_vars
+          name: Setup Environment Variables
+          command: |
+            export PROJECT_NAME=ml-recipe-bone-age
+            export PROJECT_PATH_STORAGE=storage:build-$PROJECT_NAME-$CIRCLE_WORKFLOW_ID
+            export IMAGE_NAME=neuromation/$PROJECT_NAME
+            export IMAGE_REF=$IMAGE_NAME:build-$CIRCLE_WORKFLOW_ID
+            export JOBS_TAG=build-$CIRCLE_WORKFLOW_ID
+
+            echo "PROJECT_NAME=$PROJECT_NAME" >> $BASH_ENV
+            echo "PROJECT_PATH_STORAGE=$PROJECT_PATH_STORAGE" >> $BASH_ENV
+            echo "IMAGE_NAME=$IMAGE_NAME" >> $BASH_ENV
+            echo "IMAGE_REF=$IMAGE_REF" >> $BASH_ENV
+            echo "JOBS_TAG=$JOBS_TAG" >> $BASH_ENV
+
       - setup_remote_docker
       - checkout
-      - run:
-          name: Install Dependencies
+      - run: &install_dependencies
+          name: Install Dependencies, Configure Environment
           command: |
             pip install --user -r .circleci/requirements.txt
-      - run:
-          name: Build Image
-          command: |
             neuro config login-with-token $NEURO_TOKEN
+            neuro config show
+
+      - run:
+          name: Build and Test Image
+          command: |
+            export CUSTOM_ENV_NAME=image:$IMAGE_REF
+            make setup __BAKE_SETUP=yes | tee
+            export RUN_EXTRA="--tag=$JOBS_TAG"
+
+            make -f test.mk test_jupyter TRAINING_MACHINE_TYPE=cpu-small | tee
+            make -f test.mk test_jupyter TRAINING_MACHINE_TYPE=gpu-small | tee
+            make -f test.mk test_jupyter_baked TRAINING_MACHINE_TYPE=cpu-small | tee
+            make -f test.mk test_jupyter_baked TRAINING_MACHINE_TYPE=gpu-small | tee
+
+      - run:
+          name: Cleanup Jobs
+          command: |
+            export JOBS_LEFT=$(neuro -q ps --tag=$JOBS_TAG)
+            [ ! "$JOBS_LEFT" ] || neuro kill $JOBS_LEFT
+          when: always
+
+  deploy:
+    <<: *defaults
+    steps:
+      - run: *setup_env_vars
+      - setup_remote_docker
+      - checkout
+      - run: *install_dependencies
+
+      - run:
+          name: Pull Image
+          command: |
             neuro config docker
-            export IMAGE_NAME=neuromation/ml-recipe-bone-age
-            export IMAGE_REF=$IMAGE_NAME:$CIRCLE_BUILD_NUM
-            export IMAGE_URI=image:$IMAGE_REF
-            make setup \
-                __BAKE_SETUP=yes \
-                CUSTOM_ENV_NAME=$IMAGE_URI \
-                PROJECT_PATH_STORAGE=storage:build-$CIRCLE_BUILD_NUM
-            neuro pull $IMAGE_URI
-            echo "CIRCLE_TAG=$CIRCLE_TAG"
+            neuro pull image:$IMAGE_REF | tee
             docker tag $IMAGE_REF $IMAGE_NAME:$CIRCLE_TAG
             docker tag $IMAGE_REF $IMAGE_NAME:latest
+
       - docker/check
       - docker/push:
           image: neuromation/ml-recipe-bone-age
@@ -50,7 +88,10 @@ workflows:
 
   main:
     jobs:
-      - build:
+      - build_and_test
+      - deploy:
+          requires:
+            - build_and_test
           filters:
             branches:
               ignore: /.*/

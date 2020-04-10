@@ -94,7 +94,8 @@ workflows:
             - build_and_test
           filters:
             branches:
-              ignore: /.*/
+              only:
+                - master
             tags:
               only:
                 - /.*/

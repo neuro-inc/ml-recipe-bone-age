@@ -88,14 +88,21 @@ workflows:
 
   main:
     jobs:
-      - build_and_test
+
+      - build_and_test:
+          filters:
+            tags:
+              only:
+                - /.*/
+
       - deploy:
           requires:
             - build_and_test
           filters:
             branches:
-              only:
-                - master
+              ignore: 
+                - /.*/
             tags:
               only:
                 - /.*/
+

@@ -133,6 +133,7 @@ training: upload-code  ### Run a training job
 		--volume $(PROJECT_PATH_STORAGE)/$(CODE_DIR):$(PROJECT_PATH_ENV)/$(CODE_DIR):ro \
 		--volume $(PROJECT_PATH_STORAGE)/$(RESULTS_DIR):$(PROJECT_PATH_ENV)/$(RESULTS_DIR):rw \
 		--env EXPOSE_SSH=yes \
+		--env DATA_ROOT_PATH_ENV=$(DATA_ROOT_PATH_ENV) \
 		$(CUSTOM_ENV_NAME) \
 		bash -c 'cd $(PROJECT_PATH_ENV) && \
 		    python -u $(CODE_DIR)/train.py \
@@ -157,6 +158,7 @@ jupyter: upload-code upload-notebooks ### Run a job with Jupyter Notebook and op
 		--browse \
 		--volume $(DATA_ROOT_STORAGE):$(DATA_ROOT_PATH_ENV):ro \
 		--volume $(PROJECT_PATH_STORAGE):$(PROJECT_PATH_ENV):rw \
+		--env DATA_ROOT_PATH_ENV=$(DATA_ROOT_PATH_ENV) \
 		$(CUSTOM_ENV_NAME) \
 		$(JUPYTER_CMD)
 
@@ -190,6 +192,7 @@ filebrowser:  ### Run a job with File Browser and open UI in the default browser
 		--browse \
 		--volume $(DATA_ROOT_STORAGE):$(DATA_ROOT_PATH_ENV):ro \
 		--volume $(PROJECT_PATH_STORAGE):/srv:rw \
+		--env DATA_ROOT_PATH_ENV=$(DATA_ROOT_PATH_ENV) \
 		filebrowser/filebrowser \
 		--noauth
 

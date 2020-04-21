@@ -94,7 +94,7 @@ __bake: upload-code upload-notebooks
 	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) \
            "jupyter trust /project-local/notebooks/demo.ipynb"
 	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) \
-           "sh /project-local/download_data.sh"
+           "sh /project-local/download_data.sh >/dev/null"
 
 ##### STORAGE #####
 

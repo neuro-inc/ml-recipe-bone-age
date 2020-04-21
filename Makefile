@@ -93,6 +93,8 @@ __bake: upload-code upload-notebooks
 	    "bash -c 'mkdir /project-local; cp -R -T $(PROJECT_PATH_ENV) /project-local'"
 	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) \
            "jupyter trust /project-local/notebooks/demo.ipynb"
+	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) \
+           "sh /project-local/download_data.sh"
 
 ##### STORAGE #####
 

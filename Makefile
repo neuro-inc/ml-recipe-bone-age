@@ -6,7 +6,7 @@ CODE_DIR?=src
 NOTEBOOKS_DIR?=notebooks
 RESULTS_DIR?=results
 
-PROJECT_FILES=requirements.txt apt.txt setup.cfg
+PROJECT_FILES=requirements.txt apt.txt setup.cfg download_data.sh
 
 PROJECT_PATH_STORAGE?=storage:ml-recipe-bone-age
 

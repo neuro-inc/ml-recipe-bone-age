@@ -73,7 +73,7 @@ setup: ### Setup remote environment
 ifdef __BAKE_SETUP
 	make __bake
 endif
-	$(NEURO) --network-timeout 300 job save $(SETUP_JOB) $(CUSTOM_ENV_NAME)
+	$(NEURO) --network-timeout 900 job save $(SETUP_JOB) $(CUSTOM_ENV_NAME)
 	$(NEURO) kill $(SETUP_JOB)
 
 .PHONY: __bake

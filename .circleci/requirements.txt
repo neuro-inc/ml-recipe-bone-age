@@ -1,2 +1,2 @@
 neuromation>=20.4.6
-certifi
+certifi>=2020.4.5.1

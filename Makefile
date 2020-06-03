@@ -1,3 +1,5 @@
+BASE_ENV_VERSION=v1.5
+
 ##### PATHS #####
 
 DATA_DIR?=data
@@ -5,11 +7,13 @@ CODE_DIR?=src
 NOTEBOOKS_DIR?=notebooks
 RESULTS_DIR?=results
 
-PROJECT_FILES=requirements.txt apt.txt setup.cfg
+PROJECT_FILES=requirements.txt apt.txt setup.cfg download_data.sh
 
 PROJECT_PATH_STORAGE?=storage:ml-recipe-bone-age
 
 PROJECT_PATH_ENV?=/ml-recipe-bone-age
+
+DATA_ROOT_PATH_ENV=/data
 
 ##### JOB NAMES #####
 
@@ -23,7 +27,7 @@ FILEBROWSER_JOB?=filebrowser-$(PROJECT_POSTFIX)
 
 ##### ENVIRONMENTS #####
 
-BASE_ENV_NAME?=neuromation/base
+BASE_ENV_NAME?=neuromation/base:$(BASE_ENV_VERSION)
 CUSTOM_ENV_NAME?=image:neuromation-$(PROJECT_POSTFIX)
 
 ##### VARIABLES YOU MAY WANT TO MODIFY #####
@@ -38,9 +42,8 @@ TRAINING_MACHINE_TYPE?=gpu-small
 # Set `HTTP_AUTH?=--no-http-auth` to disable any authentication.
 # WARNING: removing authentication might disclose your sensitive data stored in the job.
 HTTP_AUTH?=--http-auth
-# Command to run training inside the environment. Example:
-# TRAINING_COMMAND="bash -c 'cd $(PROJECT_PATH_ENV) && python -u $(CODE_DIR)/train.py --data $(DATA_DIR)'"
-TRAINING_COMMAND="bash -c 'cd $(PROJECT_PATH_ENV) && python -u $(CODE_DIR)/train.py'"
+
+JUPYTER_CMD=jupyter notebook --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir=$(PROJECT_PATH_ENV)
 
 ##### COMMANDS #####
 
@@ -61,7 +64,7 @@ help:
 .PHONY: setup
 setup: ### Setup remote environment
 	$(NEURO) kill $(SETUP_JOB) >/dev/null 2>&1 || :
-	$(NEURO) run \
+	$(NEURO) run $(RUN_EXTRA) \
 		--name $(SETUP_JOB) \
 		--preset cpu-small \
 		--detach \
@@ -71,8 +74,29 @@ setup: ### Setup remote environment
 	for file in $(PROJECT_FILES); do $(NEURO) cp ./$$file $(PROJECT_PATH_STORAGE)/$$file; done
 	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) "bash -c 'export DEBIAN_FRONTEND=noninteractive && $(APT) update && cat $(PROJECT_PATH_ENV)/apt.txt | xargs -I % $(APT) install --no-install-recommends % && $(APT) clean && $(APT) autoremove && rm -rf /var/lib/apt/lists/*'"
 	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) "bash -c '$(PIP) -r $(PROJECT_PATH_ENV)/requirements.txt'"
+ifdef __BAKE_SETUP
+	make __bake
+endif
 	$(NEURO) --network-timeout 300 job save $(SETUP_JOB) $(CUSTOM_ENV_NAME)
 	$(NEURO) kill $(SETUP_JOB)
+
+.PHONY: __bake
+__bake: upload-code upload-notebooks
+	echo "#!/usr/bin/env bash" > /tmp/jupyter.sh
+	echo "jupyter notebook \
+            --no-browser \
+            --ip=0.0.0.0 \
+            --allow-root \
+            --NotebookApp.token= \
+            --NotebookApp.default_url=/notebooks/project-local/notebooks/demo.ipynb \
+            --NotebookApp.shutdown_no_activity_timeout=7200 \
+            --MappingKernelManager.cull_idle_timeout=7200 \
+" >> /tmp/jupyter.sh
+	$(NEURO) cp /tmp/jupyter.sh $(PROJECT_PATH_STORAGE)/jupyter.sh
+	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) \
+	    "bash -c 'mkdir /project-local; cp -R -T $(PROJECT_PATH_ENV) /project-local'"
+	$(NEURO) exec --no-tty --no-key-check $(SETUP_JOB) \
+           "jupyter trust /project-local/notebooks/demo.ipynb"
 
 ##### STORAGE #####
 
@@ -104,16 +128,16 @@ download-notebooks:  ### Download notebooks directory from the platform storage
 clean-notebooks:  ### Delete notebooks directory from the platform storage
 	$(NEURO) rm --recursive $(PROJECT_PATH_STORAGE)/$(NOTEBOOKS_DIR)
 
-.PHONY: upload  ### Upload code, data, and notebooks directories to the platform storage
-upload: upload-code upload-data upload-notebooks
+.PHONY: upload  ### Upload code, and notebooks directories to the platform storage
+upload: upload-code upload-notebooks
 
-.PHONY: clean  ### Delete code, data, and notebooks directories from the platform storage
-clean: clean-code clean-data clean-notebooks
+.PHONY: clean  ### Delete code, and notebooks directories from the platform storage
+clean: clean-code clean-notebooks
 
 ##### JOBS #####
 
 .PHONY: training
-training:  ### Run a training job
+training: upload-code  ### Run a training job
 	$(NEURO) run \
 		--name $(TRAINING_JOB) \
 		--preset $(TRAINING_MACHINE_TYPE) \
@@ -122,7 +146,11 @@ training:  ### Run a training job
 		--volume $(PROJECT_PATH_STORAGE)/$(RESULTS_DIR):$(PROJECT_PATH_ENV)/$(RESULTS_DIR):rw \
 		--env EXPOSE_SSH=yes \
 		$(CUSTOM_ENV_NAME) \
-		$(TRAINING_COMMAND)
+		bash -c 'cd $(PROJECT_PATH_ENV) && \
+		    sh download_data.sh bone-age-full.zip $(DATA_ROOT_PATH_ENV) && \
+		    python -u $(CODE_DIR)/train.py \
+		        --data_dir=$(DATA_ROOT_PATH_ENV)/data/train \
+		        --annotation_csv=$(DATA_ROOT_PATH_ENV)/data/train.csv'
 
 .PHONY: kill-training
 kill-training:  ### Terminate the training job
@@ -134,7 +162,7 @@ connect-training:  ### Connect to the remote shell running on the training job
 
 .PHONY: jupyter
 jupyter: upload-code upload-notebooks ### Run a job with Jupyter Notebook and open UI in the default browser
-	$(NEURO) run \
+	$(NEURO) run $(RUN_EXTRA) \
 		--name $(JUPYTER_JOB) \
 		--preset $(TRAINING_MACHINE_TYPE) \
 		--http 8888 \
@@ -142,7 +170,7 @@ jupyter: upload-code upload-notebooks ### Run a job with Jupyter Notebook and op
 		--browse \
 		--volume $(PROJECT_PATH_STORAGE):$(PROJECT_PATH_ENV):rw \
 		$(CUSTOM_ENV_NAME) \
-		'jupyter notebook --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir=$(PROJECT_PATH_ENV)'
+		$(JUPYTER_CMD)
 
 .PHONY: kill-jupyter
 kill-jupyter:  ### Terminate the job with Jupyter Notebook
@@ -150,7 +178,7 @@ kill-jupyter:  ### Terminate the job with Jupyter Notebook
 
 .PHONY: tensorboard
 tensorboard:  ### Run a job with TensorBoard and open UI in the default browser
-	$(NEURO) run \
+	$(NEURO) run $(RUN_EXTRA) \
 		--name $(TENSORBOARD_JOB) \
 		--preset cpu-small \
 		--http 6006 \
@@ -166,14 +194,15 @@ kill-tensorboard:  ### Terminate the job with TensorBoard
 
 .PHONY: filebrowser
 filebrowser:  ### Run a job with File Browser and open UI in the default browser
-	$(NEURO) run \
+	$(NEURO) run $(RUN_EXTRA) \
 		--name $(FILEBROWSER_JOB) \
 		--preset cpu-small \
 		--http 80 \
 		$(HTTP_AUTH) \
 		--browse \
 		--volume $(PROJECT_PATH_STORAGE):/srv:rw \
-		filebrowser/filebrowser
+		filebrowser/filebrowser \
+		--noauth
 
 .PHONY: kill-filebrowser
 kill-filebrowser:  ### Terminate the job with File Browser

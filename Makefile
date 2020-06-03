@@ -2,7 +2,6 @@ BASE_ENV_VERSION=v1.5
 
 ##### PATHS #####
 
-DATA_DIR?=data
 CODE_DIR?=src
 NOTEBOOKS_DIR?=notebooks
 RESULTS_DIR?=results
@@ -31,10 +30,6 @@ BASE_ENV_NAME?=neuromation/base:$(BASE_ENV_VERSION)
 CUSTOM_ENV_NAME?=image:neuromation-$(PROJECT_POSTFIX)
 
 ##### VARIABLES YOU MAY WANT TO MODIFY #####
-
-# Location of your dataset on the platform storage. Example:
-# DATA_DIR_STORAGE?=storage:datasets/cifar10
-DATA_DIR_STORAGE?=$(PROJECT_PATH_STORAGE)/$(DATA_DIR)
 
 # The type of the training machine (run `neuro config show` to see the list of available types).
 TRAINING_MACHINE_TYPE?=gpu-small
@@ -108,14 +103,6 @@ upload-code:  ### Upload code directory to the platform storage
 clean-code:  ### Delete code directory from the platform storage
 	$(NEURO) rm --recursive $(PROJECT_PATH_STORAGE)/$(CODE_DIR)
 
-.PHONY: upload-data
-upload-data:  ### Upload data directory to the platform storage
-	$(NEURO) cp --recursive --update --no-target-directory $(DATA_DIR) $(DATA_DIR_STORAGE)
-
-.PHONY: clean-data
-clean-data:  ### Delete data directory from the platform storage
-	$(NEURO) rm --recursive $(DATA_DIR_STORAGE)
-
 .PHONY: upload-notebooks
 upload-notebooks:  ### Upload notebooks directory to the platform storage
 	$(NEURO) cp --recursive --update --no-target-directory $(NOTEBOOKS_DIR) $(PROJECT_PATH_STORAGE)/$(NOTEBOOKS_DIR)
@@ -138,10 +125,9 @@ clean: clean-code clean-notebooks
 
 .PHONY: training
 training: upload-code  ### Run a training job
-	$(NEURO) run \
+	$(NEURO) run $(RUN_EXTRA) \
 		--name $(TRAINING_JOB) \
 		--preset $(TRAINING_MACHINE_TYPE) \
-		--volume $(DATA_DIR_STORAGE):$(PROJECT_PATH_ENV)/$(DATA_DIR):ro \
 		--volume $(PROJECT_PATH_STORAGE)/$(CODE_DIR):$(PROJECT_PATH_ENV)/$(CODE_DIR):ro \
 		--volume $(PROJECT_PATH_STORAGE)/$(RESULTS_DIR):$(PROJECT_PATH_ENV)/$(RESULTS_DIR):rw \
 		--env EXPOSE_SSH=yes \

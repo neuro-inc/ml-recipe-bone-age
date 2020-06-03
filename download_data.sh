@@ -1,9 +1,8 @@
 #!/bin/bash
 
-DATASET=${1:-bone-age-full.zip}
-DEST=${2:-/data}
+DEST=/data
 TMP=$(mktemp -d)
-echo "Will download dataset to $TMP and unpack it to $DEST"
 
-wget http://data.neu.ro/$DATASET -O $TMP/out.zip
-unzip $TMP/out.zip -d $DEST
+wget http://data.neu.ro/bone-age.zip -O $TMP/bone-age.zip
+unzip $TMP/bone-age.zip -d $DEST
+

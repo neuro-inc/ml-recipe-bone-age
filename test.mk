@@ -11,7 +11,7 @@ CMD_NBCONVERT=\
   --no-prompt \
   --no-input \
   --to=asciidoc \
-  --ExecutePreprocessor.timeout=300 \
+  --ExecutePreprocessor.timeout=1000 \
   --output=/tmp/out \
   $(PROJECT_PATH_ENV)/$(NOTEBOOKS_DIR)/demo.ipynb
 
@@ -29,7 +29,7 @@ test_jupyter_baked: PROJECT_PATH_ENV=/project-local
 test_jupyter_baked: JOB_NAME=$(JUPYTER_JOB)-baked
 test_jupyter_baked:
 	$(NEURO) run $(RUN_EXTRA) \
-		--name $(JOB_NAME) \
+	    --name $(JOB_NAME) \
 		--preset $(TRAINING_MACHINE_TYPE) \
 		$(CUSTOM_ENV_NAME) \
 		bash -c '$(CMD_PREPARE) && $(CMD_NBCONVERT)'

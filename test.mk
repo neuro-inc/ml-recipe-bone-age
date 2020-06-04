@@ -1,3 +1,4 @@
+include Makefile
 
 CMD_PREPARE=\
   export DEBIAN_FRONTEND=noninteractive && \

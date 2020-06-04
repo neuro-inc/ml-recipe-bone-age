@@ -6,13 +6,12 @@ CODE_DIR?=src
 NOTEBOOKS_DIR?=notebooks
 RESULTS_DIR?=results
 
-PROJECT_FILES=requirements.txt apt.txt setup.cfg
+PROJECT_FILES=requirements.txt apt.txt setup.cfg download_data.sh
 
 PROJECT_PATH_STORAGE?=storage:ml-recipe-bone-age
 
 PROJECT_PATH_ENV?=/ml-recipe-bone-age
 
-DATA_ROOT_STORAGE=storage:/neuromation/public/ml-recipe-bone-age
 DATA_ROOT_PATH_ENV=/data
 
 ##### JOB NAMES #####
@@ -129,12 +128,12 @@ training: upload-code  ### Run a training job
 	$(NEURO) run $(RUN_EXTRA) \
 		--name $(TRAINING_JOB) \
 		--preset $(TRAINING_MACHINE_TYPE) \
-		--volume $(DATA_ROOT_STORAGE):$(DATA_ROOT_PATH_ENV):ro \
 		--volume $(PROJECT_PATH_STORAGE)/$(CODE_DIR):$(PROJECT_PATH_ENV)/$(CODE_DIR):ro \
 		--volume $(PROJECT_PATH_STORAGE)/$(RESULTS_DIR):$(PROJECT_PATH_ENV)/$(RESULTS_DIR):rw \
 		--env EXPOSE_SSH=yes \
 		$(CUSTOM_ENV_NAME) \
 		bash -c 'cd $(PROJECT_PATH_ENV) && \
+		    sh download_data.sh bone-age-full.zip $(DATA_ROOT_PATH_ENV) && \
 		    python -u $(CODE_DIR)/train.py \
 		        --data_dir=$(DATA_ROOT_PATH_ENV)/data/train \
 		        --annotation_csv=$(DATA_ROOT_PATH_ENV)/data/train.csv'
@@ -155,7 +154,6 @@ jupyter: upload-code upload-notebooks ### Run a job with Jupyter Notebook and op
 		--http 8888 \
 		$(HTTP_AUTH) \
 		--browse \
-		--volume $(DATA_ROOT_STORAGE):$(DATA_ROOT_PATH_ENV):ro \
 		--volume $(PROJECT_PATH_STORAGE):$(PROJECT_PATH_ENV):rw \
 		$(CUSTOM_ENV_NAME) \
 		$(JUPYTER_CMD)
@@ -188,7 +186,6 @@ filebrowser:  ### Run a job with File Browser and open UI in the default browser
 		--http 80 \
 		$(HTTP_AUTH) \
 		--browse \
-		--volume $(DATA_ROOT_STORAGE):$(DATA_ROOT_PATH_ENV):ro \
 		--volume $(PROJECT_PATH_STORAGE):/srv:rw \
 		filebrowser/filebrowser \
 		--noauth

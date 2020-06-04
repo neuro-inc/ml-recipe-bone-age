@@ -1,1 +1,2 @@
-neuromation>=20.4.6
+neuromation>=20.4.15
+certifi>=2020.4.5.1

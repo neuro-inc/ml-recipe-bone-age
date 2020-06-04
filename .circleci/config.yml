@@ -39,7 +39,7 @@ jobs:
           name: Install Dependencies, Configure Environment
           command: |
             pip install --user -r .circleci/requirements.txt
-            neuro config login-with-token $NEURO_TOKEN
+            neuro config login-with-token $NEURO_TOKEN $NEURO_URL
             neuro config show
 
       - run:
@@ -49,9 +49,10 @@ jobs:
             make setup __BAKE_SETUP=yes | tee
             export RUN_EXTRA="--tag=$JOBS_TAG"
 
-            make -f test.mk test_jupyter TRAINING_MACHINE_TYPE=cpu-small | tee
+            # note: with cpu-small, we get "Kernel died while waiting for execute reply"
+            make -f test.mk test_jupyter TRAINING_MACHINE_TYPE=cpu-large | tee
             make -f test.mk test_jupyter TRAINING_MACHINE_TYPE=gpu-small | tee
-            make -f test.mk test_jupyter_baked TRAINING_MACHINE_TYPE=cpu-small | tee
+            make -f test.mk test_jupyter_baked TRAINING_MACHINE_TYPE=cpu-large | tee
             make -f test.mk test_jupyter_baked TRAINING_MACHINE_TYPE=gpu-small | tee
 
       - run:
@@ -79,7 +80,7 @@ jobs:
 
       - docker/check
       - docker/push:
-          image: neuromation/ml-recipe-bone-age
+          image: $PROJECT_NAME
           tag: $CIRCLE_TAG,latest
 
 
@@ -88,14 +89,20 @@ workflows:
 
   main:
     jobs:
-      - build_and_test
+
+      - build_and_test:
+          filters:
+            tags:
+              only:
+                - /.*/
+
       - deploy:
           requires:
             - build_and_test
           filters:
             branches:
-              only:
-                - master
+              ignore:
+                - /.*/
             tags:
               only:
                 - /.*/

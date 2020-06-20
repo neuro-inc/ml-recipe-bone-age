@@ -80,7 +80,7 @@ jobs:
 
       - docker/check
       - docker/push:
-          image: $PROJECT_NAME
+          image: $IMAGE_NAME
           tag: $CIRCLE_TAG,latest
 
 

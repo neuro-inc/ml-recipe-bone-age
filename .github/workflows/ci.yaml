@@ -1,0 +1,103 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+  release:
+    types: [published]
+
+env:
+  PROJECT_NAME: ml-recipe-bone-age
+  NEURO_STAGING_URL: ${{ secrets.NEURO_STAGING_URL }}
+  NEURO_TOKEN: ${{ secrets.NEURO_TOKEN }}
+
+jobs:
+  test:
+    name: Build and test image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout commit
+        uses: actions/checkout@v2
+      - name: Setup Environment Variables
+        run: |
+          echo ::set-env name=PROJECT_PATH_STORAGE::storage:build-$PROJECT_NAME-$GITHUB_RUN_ID
+          echo ::set-env name=IMAGE_NAME::neuromation/$PROJECT_NAME
+          echo ::set-env name=IMAGE_TAG::build-$GITHUB_RUN_ID
+          echo ::set-env name=JOBS_TAG::build-$GITHUB_RUN_ID
+      - name: Install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.7"
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r .github/workflows/requirements.txt
+      - name: Configure environment
+        run: |
+          source venv/bin/activate
+          neuro config login-with-token $NEURO_TOKEN $NEURO_STAGING_URL
+          neuro config show
+      - name: Build and test image
+        run: |
+          set -e
+          source venv/bin/activate
+          export CUSTOM_ENV_NAME=image:$IMAGE_NAME:$IMAGE_TAG
+          make setup __BAKE_SETUP=yes
+          export RUN_EXTRA="--tag=$JOBS_TAG"
+          # note: with cpu-small, we get "Kernel died while waiting for execute reply"
+          make -f test.mk test_jupyter TRAINING_MACHINE_TYPE=cpu-large
+          make -f test.mk test_jupyter TRAINING_MACHINE_TYPE=gpu-small
+          make -f test.mk test_jupyter_baked TRAINING_MACHINE_TYPE=cpu-large
+          make -f test.mk test_jupyter_baked TRAINING_MACHINE_TYPE=gpu-small
+      - name: Cleanup Jobs
+        if: ${{ always() }}
+        run: |
+          source venv/bin/activate
+          export JOBS_LEFT=$(neuro -q ps --tag=$JOBS_TAG)
+          [ ! "$JOBS_LEFT" ] || neuro kill $JOBS_LEFT
+  deploy:
+    name: Deploy image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'release'
+    env:
+      DOCKER_SERVER: docker.io
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    steps:
+      - name: Checkout commit
+        uses: actions/checkout@v2
+      - name: Setup Environment Variables
+        run: |
+          echo ::set-env name=PROJECT_PATH_STORAGE::storage:build-$PROJECT_NAME-$GITHUB_RUN_ID
+          echo ::set-env name=IMAGE_NAME::neuromation/$PROJECT_NAME
+          echo ::set-env name=IMAGE_TAG::build-$GITHUB_RUN_ID
+          echo ::set-env name=JOBS_TAG::build-$GITHUB_RUN_ID
+          echo ::set-env name=TAG::${GITHUB_REF#refs/tags/}
+      - name: Install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.7"
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --user -r .github/workflows/requirements.txt
+      - name: Configure environment
+        run: |
+          source venv/bin/activate
+          neuro config login-with-token $NEURO_TOKEN $NEURO_STAGING_URL
+          neuro config show
+      - name: Pull image
+        run: |
+          source venv/bin/activate
+          neuro config docker
+          neuro pull image:$IMAGE_NAME:$IMAGE_TAG | tee
+          docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:$TAG
+          docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
+      - name: Push image
+        run: |
+          docker login $DOCKER_SERVER --username $DOCKER_USERNAME --password $DOCKER_PASSWORD
+          docker push $IMAGE_NAME:$TAG
+          docker push $IMAGE_NAME:latest
+

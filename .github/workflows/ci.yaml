@@ -39,7 +39,7 @@ jobs:
           neuro config show
       - name: Build and test image
         run: |
-          set -e
+          set -e -o pipefail
           source venv/bin/activate
           export CUSTOM_ENV_NAME=image:$IMAGE_NAME:$IMAGE_TAG
           make setup __BAKE_SETUP=yes

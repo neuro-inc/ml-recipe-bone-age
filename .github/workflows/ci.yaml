@@ -82,7 +82,7 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          pip install --user -r .github/workflows/requirements.txt
+          pip install -r .github/workflows/requirements.txt
       - name: Configure environment
         run: |
           source venv/bin/activate

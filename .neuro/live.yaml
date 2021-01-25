@@ -113,7 +113,7 @@ jobs:
       dvc pull || echo "DVC cache not found, will be created..."
 
       echo "Extending dataset"
-      python label_studio/extend_dataset.py \
+      python data_utils/extend_dataset.py \
         --cur_dataset data/Images \
         --full_dataset ${{ volumes.remote_dataset.mount }}/images/Images/ \
         --nmber_of_imgs ${{ params.extend_dataset_by }}

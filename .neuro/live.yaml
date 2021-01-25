@@ -68,9 +68,17 @@ jobs:
         default: http://data.neu.ro/bone-age-tiny.zip
         descr: URL of dataset to download
     bash: |
-      DST=$(basename ${{ params.dataset_path }} .tar)
+      DST=$(basename ${{ params.dataset_path }} .zip)
       if [ ! -e ${{ volumes.remote_dataset.mount }}/$DST ]; then
         neuro-extras data cp --extract --use-temp-dir ${{ params.dataset_path }} ${{ volumes.remote_dataset.mount }}/$DST;
+        cd ${{ volumes.remote_dataset.mount }}/$DST
+        mv data/test/*.png data/train
+        rmdir data/test
+        sed -n '1d;p' data/test.csv >> data/train.csv
+        rm data/test.csv
+        mv data/train/ images/
+        mv data/train.csv annotations.csv
+        rmdir data
       else
         echo "Dataset is already downloaded, skipping."
       fi

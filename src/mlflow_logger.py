@@ -5,7 +5,6 @@ from catalyst.dl.callbacks.logging import LoggerCallback, RunnerState
 
 import mlflow
 import mlflow.pytorch
-from mlflow.entities.run_status import RunStatus
 
 
 class MLFlowLogging(LoggerCallback):
@@ -14,7 +13,6 @@ class MLFlowLogging(LoggerCallback):
         self.mlflow_run: mlflow.ActiveRun = mlflow.start_run()
         self.metrics_to_log = metric_names
         self.extra_params = extra_params
-        self.loggers = dict()
 
     def _log_metrics(self, metrics: Dict[str, float], step: int, suffix: str = ""):
         if self.metrics_to_log is None:
@@ -32,16 +30,12 @@ class MLFlowLogging(LoggerCallback):
             mlflow.log_param(param, str(value))
 
     def on_stage_end(self, state: RunnerState):
-        # TODO:
-        return
-        if RunStatus.from_string(self.mlflow_run.info.status) == RunStatus.RUNNING:
-            try:
-                mlflow.pytorch.log_model(state.model, state.logdir)
-            except Exception as e:
-                logging.exception(f"Unable to log model into MLFlow: {e}", exc_info=True)
-                mlflow.end_run(RunStatus.FAILED)
-            else:
-                mlflow.end_run(RunStatus.FINISHED)
+        try:
+            mlflow.pytorch.log_model(state.model, "model")
+            mlflow.end_run(status="FINISHED")
+        except Exception as e:
+            logging.exception(f"Unable to log model into MLFlow: {e}", exc_info=True)
+            mlflow.end_run("FAILED")
 
     def on_batch_end(self, state: RunnerState):
         """Send batch metrics to MLFlow"""

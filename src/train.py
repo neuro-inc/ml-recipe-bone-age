@@ -18,6 +18,7 @@ from catalyst.utils import set_global_seed
 from model import m46
 from dataset import get_loaders
 from const import LOG_DIR, DATA_PATH, MODELS_DIR
+from mlflow_logger import MLFlowLogging
 
 
 def main(args: Namespace) -> None:
@@ -38,7 +39,24 @@ def main(args: Namespace) -> None:
                               input_target_key='label',
                               device=args.device if is_available() else tdevice('cpu')
                               )
-    callbacks = [clb.CriterionCallback(input_key='label', output_key=output_key)]
+    callbacks = [
+        clb.CriterionCallback(input_key='label', output_key=output_key),
+        MLFlowLogging(
+            extra_params=dict(
+                crop_center=args.crop_center,
+                crop_size=args.crop_size,
+                scale=args.scale,
+                dataset_split=args.dataset_split,
+                model_type=args.model_type,
+                n_epoch=args.n_epoch,
+                batch_size=args.batch_size,
+                n_gpu=args.n_gpu,
+                n_workers=args.n_workers,
+                seed=args.seed,
+                device=args.device.type,
+            )
+        ),
+    ]
     if args.model_type == 'gender':
         callbacks += [clb.AccuracyCallback(prefix='accuracy', input_key='label',
                                            output_key=output_key, accuracy_args=[1],

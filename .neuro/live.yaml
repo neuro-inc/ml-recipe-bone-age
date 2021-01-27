@@ -1,5 +1,6 @@
 kind: live
 title: ml-recipe-bone-age
+id: ml_recipe_bone_age
 
 defaults:
   preset: cpu-small
@@ -90,7 +91,7 @@ jobs:
     volumes:
       - ${{ volumes.remote_dataset.ref_rw }}
       - ${{ volumes.dvc_cache.ref_rw }}
-      - secret:/yevheniisemendiak/ysemendiak-gh-rsa:/root/.ssh/id-rsa
+      - secret:gh-rsa:/root/.ssh/id-rsa
     params:
       extend_dataset_by:
         default: "1"
@@ -127,7 +128,7 @@ jobs:
       git commit -m "add ${{ params.extend_dataset_by }} img to dataset."
       git push --force -u origin ${{ params.target_git_branch }}
 
-  label_studio: # todo: fix if we are doing it
+  label_studio:
     image: $[[ images.label_studio.ref ]]
     name: $[[ flow.title ]]-label-studio
     http_port: 443
@@ -138,7 +139,7 @@ jobs:
     volumes:
       - ${{ volumes.label_studio.ref_rw }}
       - ${{ volumes.dvc_cache.ref_rw }}
-      - secret:/yevheniisemendiak/ysemendiak-gh-rsa:/root/.ssh/id-rsa
+      - secret:gh-rsa:/root/.ssh/id-rsa
     params:
       target_git_branch:
         default: "ys/datasets"
@@ -220,7 +221,7 @@ jobs:
     volumes:
       - $[[ volumes.dvc_cache.ref_ro ]]
       - $[[ volumes.mlflow_artifacts.ref_rw ]]
-      - secret:/yevheniisemendiak/ysemendiak-gh-rsa:/root/.ssh/id-rsa
+      - secret:gh-rsa:/root/.ssh/id-rsa
     env:
       EXPOSE_SSH: "yes"
       MLFLOW_TRACKING_URI: "https://ml-recipe-bone-age-mlflow-server--yevheniisemendiak.jobs.neuro-compute.org.neu.ro"

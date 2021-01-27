@@ -83,12 +83,12 @@ jobs:
         echo "Dataset is already downloaded, skipping."
       fi
 
-  extend_data: # todo: need to adapt
+  extend_data:
     image: $[[ images.train.ref ]]
     preset: cpu-small
     detach: False
     volumes:
-      - ${{ volumes.remote_dataset.ref_ro }}
+      - ${{ volumes.remote_dataset.ref_rw }}
       - ${{ volumes.dvc_cache.ref_rw }}
       - secret:/yevheniisemendiak/ysemendiak-gh-rsa:/root/.ssh/id-rsa
     params:
@@ -108,20 +108,20 @@ jobs:
       cd project
       git checkout ${{ params.base_git_ref }}
       git checkout -b ${{ params.target_git_branch }} || git pull
-
-      dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
+      dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]] || ( dvc init -q && dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]] )
       dvc pull || echo "DVC cache not found, will be created..."
 
       echo "Extending dataset"
       python data_utils/extend_dataset.py \
-        --cur_dataset data/Images \
-        --full_dataset ${{ volumes.remote_dataset.mount }}/images/Images/ \
+        --cur_dataset data \
+        --full_dataset ${{ volumes.remote_dataset.mount }}/bone-age-tiny \
         --nmber_of_imgs ${{ params.extend_dataset_by }}
 
       echo "Commiting changes"
-      dvc commit data/Images.dvc -f || dvc add data/Images/
+      dvc commit data/images.dvc -f || dvc add data/images/
+      dvc commit data/annotations.csv.dvc -f || dvc add data/annotations.csv
       dvc push
-      git add data/Images.dvc
+      git add data/images.dvc data/annotations.csv.dvc data/.gitignore
       git config user.email "${NEURO_JOB_ID}@${NEURO_JOB_CLUSTER}"
       git config user.name "${NEURO_JOB_OWNER}"
       git commit -m "add ${{ params.extend_dataset_by }} img to dataset."
@@ -212,7 +212,7 @@ jobs:
         --backend-store-uri=postgresql://postgres:password@ml-recipe-bone-age-postgres--yevheniisemendiak.platform-jobs:5432
         --default-artifact-root=${{ volumes.mlflow_artifacts.mount }}
 
-  train: # todo: Y.S. working on it
+  train:
     image: $[[ images.train.ref ]]
     preset: gpu-k80-small-p
     detach: False
@@ -223,7 +223,7 @@ jobs:
       - secret:/yevheniisemendiak/ysemendiak-gh-rsa:/root/.ssh/id-rsa
     env:
       EXPOSE_SSH: "yes"
-      MLFLOW_TRACKING_URI: "https://ml-recipe-bone-age-postgres-mlflow-server--yevheniisemendiak.jobs.neuro-compute.org.neu.ro"
+      MLFLOW_TRACKING_URI: "https://ml-recipe-bone-age-mlflow-server--yevheniisemendiak.jobs.neuro-compute.org.neu.ro"
       PYTHONPATH: $[[ volumes.project.mount ]]
     params:
       target_git_branch:
@@ -232,16 +232,14 @@ jobs:
     bash: |
         echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
         ssh-keyscan github.com >> ~/.ssh/known_hosts
-        git clone git@github.com:neuro-inc/ml-recipe-bone-age.git $[[ volumes.project.mount ]]
-        cd $[[ volumes.project.mount ]]
+        sleep infinity
+        git clone git@github.com:neuro-inc/ml-recipe-bone-age.git project
+        cd project
         git checkout --track origin/${{ params.target_git_branch }}
 
         dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
         dvc pull
-        python -u $[[ volumes.src.mount ]]/train.py \
-          --data_dir=$[[ volumes.data.mount ]]/data/train \
-          --annotation_csv=$[[ volumes.data.mount ]]/data/train.csv \
-          || sleep infinity
+        python -u src/train.py --data_dir=data/images --annotation_csv=data/annotations.csv || sleep infinity
 
   deploy_inference_platform: # todo: Alexey is working on it
     image: $[[ images.seldon.ref ]]

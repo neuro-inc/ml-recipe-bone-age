@@ -52,7 +52,7 @@ def extend_dataset(args: argparse.Namespace) -> None:
     logger.info(f"Moving {len(img_paths_to_move)} images from {full_images_dir} to {cur_images_dir}")
     cur_images_dir.mkdir(exist_ok=True, parents=True)
     for img_path in img_paths_to_move:
-        shutil.move(str(img_path), str(cur_images_dir/img_path.name))
+        shutil.copy(str(img_path), str(cur_images_dir/img_path.name))
 
     logger.info(f"Writing result({len(result_df)}) to current dataset {cur_annotations_csv}")
     cur_annotations_csv.write_text(result_df.to_csv())

@@ -166,17 +166,28 @@ jobs:
           --host ${NEURO_JOB_NAME}--${NEURO_JOB_OWNER}.jobs.${NEURO_JOB_CLUSTER}.org.neu.ro \
           --port 443 \
           --allow-serving-local-files \
+          --init \
           label-studio-project
-
+      sleep infinity
       echo "Commiting new version of dataset."
       cd project
       dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
       dvc pull data/images.dvc
       mv tmp_data/images/* data/images
-      dvc commit -f data/images.dvc data/annotations.csv.dvc && dvc push
-      git add data/images.dvc data/annotations.csv.dvc && git status -v
+      dvc commit -f data/images.dvc data/annotations.csv.dvc
+      git add data/images.dvc data/annotations.csv.dvc
+      git status -v
       git config user.email "${NEURO_JOB_OWNER}@${NEURO_JOB_CLUSTER}"
       git config user.name "${NEURO_JOB_OWNER}"
+      while true; do
+          read -p "Commit into DVC and GIT repository (y/n) ?" yn
+          case $yn in
+              [Yy]* ) break;;
+              [Nn]* ) exit 1;;
+              * ) echo "Please answer yes or no.";;
+          esac
+      done
+      dvc push
       git commit -m "annotate $(ls ../label-studio-project/completions | grep -v ^d | wc -l) images in ${NEURO_JOB_ID}"
       git push
 

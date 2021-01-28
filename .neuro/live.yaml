@@ -249,10 +249,12 @@ jobs:
     http_auth: False
     life_span: 5h
     detach: True
+    env:
+      PYTHONPATH: /microservice/src
     params:
       run_id:
     volumes:
-      - ${{ volumes.mlflow_artifacts.remote }}/0/${{ params.run_id }}/artifacts/model/data/model.h5:/storage/model.h5
+      - ${{ volumes.mlflow_artifacts.remote }}/0/${{ params.run_id }}/artifacts/model/data/:/storage/
 
   locust: # todo: after inference
     image: locustio/locust:1.4.1

@@ -5,12 +5,13 @@ from typing import Iterable, Dict, Union, List
 
 import numpy as np
 import cv2
+import base64
 
 from src.transforms import get_transform
-from src.model import m46, convert_checkpoint
+
+import torch
 
 MOUNTED_MODELS_ROOT = pathlib.Path("/storage")
-
 
 class SeldonModel:
     def __init__(self) -> None:
@@ -25,16 +26,16 @@ class SeldonModel:
         self.test_transform = get_transform(
             augmentation=False, crop_dict=crop_dict, scale=scale
         )
-        checkpoint = convert_checkpoint(
-            model_path, {"input_shape": input_shape, "model_type": "age"}
-        )
-        self.model = m46.from_ckpt(checkpoint)
+        self.model = torch.load(model_path, map_location='cpu')
+        self.model.input_shape = input_shape
+        self.model.model_type = "age"
         self.logger.info("Model loaded.")
 
     def predict(
-        self, img_bytes: bytes, names: Iterable[str], meta: Dict = None
+        self, img_bytes: str, names: Iterable[str], meta: Dict = None
     ) -> Union[np.ndarray, List, str, bytes]:
-        arr = np.frombuffer(img_bytes, dtype=np.uint8)
+        decodedBytes = base64.b64decode(img_bytes)
+        arr = np.frombuffer(decodedBytes, dtype=np.uint8)
         image = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
         image = self.test_transform({"image": image, "label": np.ones(1)})["image"]
         image = image.unsqueeze(0)

@@ -41,15 +41,15 @@ class MLFlowLogging(LoggerCallback):
         """Send batch metrics to MLFlow"""
         # mode = state.loader_name
         metrics_ = state.metrics.batch_values
-        self._log_metrics(metrics=metrics_, step=state.step, suffix="/batch")
+        self._log_metrics(metrics=metrics_, step=int(state.step / state.batch_size), suffix="/batch")
 
-    def on_loader_end(self, state: RunnerState):
+    def on_epoch_end(self, state: RunnerState):
         """Send epoch metrics to MLFlow"""
         mode = state.loader_name
         metrics_ = state.metrics.epoch_values[mode]
         self._log_metrics(
             metrics=metrics_,
-            step=state.epoch_log,
+            step=state.epoch,
             suffix="/epoch",
         )
 

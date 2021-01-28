@@ -69,7 +69,7 @@ def _all_tasks_finished(ls_project_root: Path, project_root: Path) -> bool:
     if uploaded_imgs_dir.exists() and uploaded_imgs_dir.is_dir():
         uploaded_imgs = len(list(uploaded_imgs_dir.iterdir()))
     if completions >= imgs + uploaded_imgs:
-        return True  # all tasks, including the uploaded ones are annotated, terminatin
+        return True  # all tasks, including the uploaded ones are annotated, terminating
     else:
         return False
 
@@ -130,8 +130,11 @@ def _find_ls_port(ls_project_root: Path, launch_cmd: List[str]) -> str:
     if "--port" in launch_cmd:
         port = launch_cmd[launch_cmd.index("--port") + 1]
     else:
-        ls_config = json.loads((ls_project_root / "config.json").read_text())
-        port = ls_config.get("port")
+        try:
+            ls_config = json.loads((ls_project_root / "config.json").read_text())
+            port = ls_config.get("port")
+        except Exception:
+            port = None
         if not port:
             # Default for Label-studio, if nothing else is provided.
             port = 8080  # type: ignore

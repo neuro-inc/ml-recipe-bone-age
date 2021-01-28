@@ -1,8 +1,9 @@
 import argparse
 import shutil
 from pathlib import Path
-import pandas as pd
 import logging
+
+import pandas as pd
 
 logger = logging.getLogger()
 
@@ -26,7 +27,7 @@ def extend_dataset(args: argparse.Namespace) -> None:
     full_df = pd.read_csv(full_annotations_csv, index_col=0)
     max_nmber_of_imgs = len(full_df)
     if nmber_of_imgs >= max_nmber_of_imgs:
-        logger.info(f"Changing number of images {nmber_of_imgs} -> {max_nmber_of_imgs}")
+        logger.warning(f"Changing number of images {nmber_of_imgs} -> {max_nmber_of_imgs}")
         nmber_of_imgs = max_nmber_of_imgs
     logger.info(f"Loaded {len(full_df)} items from full dataset {full_annotations_csv}")
     take_df, rest_df = full_df[:nmber_of_imgs], full_df[nmber_of_imgs:]
@@ -36,7 +37,8 @@ def extend_dataset(args: argparse.Namespace) -> None:
         cur_df = pd.read_csv(cur_annotations_csv, index_col=0)
         logger.info(f"Loaded {len(cur_df)} items from current dataset {cur_annotations_csv}")
         result_df = pd.concat([cur_df, take_df], sort=False)#, axis='columns')
-        logger.info(f"Will merge current({len(cur_df)}) + take({len(take_df)}) -> result({len(result_df)})")
+        if not args.skip_annotation_update:
+            logger.info(f"Will merge current({len(cur_df)}) + take({len(take_df)}) -> result({len(result_df)})")
     else:
         logger.info(f"Current dataset not found: {cur_annotations_csv}")
         result_df = take_df
@@ -54,7 +56,8 @@ def extend_dataset(args: argparse.Namespace) -> None:
     for img_path in img_paths_to_move:
         shutil.copy(str(img_path), str(cur_images_dir/img_path.name))
 
-    logger.info(f"Writing result({len(result_df)}) to current dataset {cur_annotations_csv}")
+    if not args.skip_annotation_update:
+        logger.info(f"Writing result({len(result_df)}) to current dataset {cur_annotations_csv}")
     cur_annotations_csv.write_text(result_df.to_csv())
 
     logger.info(f"Writing rest({len(rest_df)}) to full dataset {full_annotations_csv}")
@@ -85,6 +88,11 @@ def get_parser() -> argparse.ArgumentParser:
         default=1,
         type=int,
         help="How many new images to add from dataset into current data",
+    )
+    parser.add_argument(
+        "--skip_annotation_update",
+        default=True,
+        action='store_false',
     )
     return parser
 

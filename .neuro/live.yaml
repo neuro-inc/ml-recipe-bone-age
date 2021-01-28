@@ -132,7 +132,7 @@ jobs:
     image: $[[ images.label_studio.ref ]]
     name: $[[ flow.title ]]-label-studio
     http_port: 443
-    http_auth: False
+    http_auth: True
     life_span: 1d
     detach: False
     browse: True

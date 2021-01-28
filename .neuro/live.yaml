@@ -93,6 +93,7 @@ jobs:
         echo "Dataset ${DATASET_PATH} already exists, skipping."
       fi
 
+
   prepare_git:
     image: ${{ images.cpu_worker.ref }}
     preset: cpu-small
@@ -109,31 +110,39 @@ jobs:
         #  --param create_git_branch ${EXPERIMENT_BRANCH}
         descr: |
           Git reference where to COMMIT the new data to.
-          By default equals to git_branch-experiment.
+          By default equals to GIT_BRANCH-experiment.
+    workdir: /project
     env:
       PROJECT: /project
-    workdir: /project
+      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
     bash: |
       set -o xtrace
-      cd ${PROJECT}
 
-      BRANCH=${{ params.git_branch }}
-      CREATE_BRANCH=${{ params.create_git_branch }}
-      CREATE_BRANCH=${CREATE_BRANCH:-$BRANCH-experiment}  # defaults to ${EXPERIMENT_BRANCH}
-      test "${BRANCH}"
-      test "${CREATE_BRANCH}"
+      GIT_BRANCH=${{ params.git_branch }}
+      CREATE_GIT_BRANCH=${{ params.create_git_branch }}
+      CREATE_GIT_BRANCH=${CREATE_BRANCH:-$GIT_BRANCH-experiment}
       DVC_CACHE=${{ volumes.dvc_cache.mount }}
 
-      URL=https://raw.githubusercontent.com/neuro-inc/ml-recipe-bone-age/${BRANCH}
+      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
+      ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git clone ${GIT_REPO} ${PROJECT}
+      cd ${PROJECT}
+      git checkout ${GIT_BRANCH}
 
-      # RUN GIT EXPLICITLY
-      bash <(curl -s ${URL}/scripts/git_checkout.sh) \
-        git_branch="${BRANCH}" \
-        create_git_branch="${CREATE_BRANCH}"
-      
-      bash <(curl -s ${URL}/scripts/git_commit.sh) \
-        git_branch=${CREATE_BRANCH} \
-        git_commit_msg="Create empty branch ${CREATE_BRANCH}"
+      echo "Checking that branch ${CREATE_GIT_BRANCH} does not yet exist"
+      if [ "$(git show-branch remotes/origin/${CREATE_GIT_BRANCH})" ]; then
+        echo "error: remote branch origin/${CREATE_GIT_BRANCH} alrady exists"
+        exit 1
+      fi
+      git checkout -b ${CREATE_GIT_BRANCH}
+
+      echo "Pushing new branch ${CREATE_GIT_BRANCH}"
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
+      git commit --allow-empty
+      git push --set-upstream origin ${CREATE_GIT_BRANCH}
+
 
   extend_data:
     image: ${{ images.cpu_worker.ref }}
@@ -150,32 +159,57 @@ jobs:
       git_branch:
         # ... --param git_branch ${EXPERIMENT_BRANCH}
         descr: "Git reference where to CHECKOUT the code and data from"
+    workdir: /project
     env:
       PROJECT: /project
-    workdir: /project
+      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
     bash: |
       set -o xtrace
+
+      GIT_BRANCH=${{ params.git_branch }}
+      GIT_USER_EMAIL="job--${NEURO_JOB_ID}.cluster--${NEURO_JOB_CLUSTER}@neu.ro"
+      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
+      DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
+      REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
+      EXTEND_DATASET_BY=${{ params.extend_dataset_by }}
+
+      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
+      ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
+      git clone ${GIT_REPO} ${PROJECT}
       cd ${PROJECT}
+      git checkout ${GIT_BRANCH}
 
-      BRANCH=${{ params.git_branch }}
-      test "${BRANCH}"
-      DVC_CACHE=${{ volumes.dvc_cache.mount }}
+      echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
+      dvc init -q -f
+      dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
+      dvc pull -f
 
-      URL=https://raw.githubusercontent.com/neuro-inc/ml-recipe-bone-age/${BRANCH}
-      bash <(curl -s ${URL}/scripts/git_checkout.sh) git_branch="${BRANCH}"
-      bash <(curl -s ${URL}/scripts/dvc_checkout.sh) dvc_cache_path="${DVC_CACHE}"
 
       echo "Extending dataset"
-      python data_utils/extend_dataset.py \
+      python ${PROJECT}/data_utils/extend_dataset.py \
         --cur_dataset data \
-        --full_dataset ${{ volumes.remote_dataset.mount }}/bone-age-tiny \
-        --nmber_of_imgs ${{ params.extend_dataset_by }}
+        --full_dataset ${REMOTE_DATASET_PATH}/bone-age-tiny \
+        --nmber_of_imgs ${EXTEND_DATASET_BY}
 
-      PATHS="data/annotations.csv, data/images"
-      bash <(curl -s ${URL}/scripts/dvc_commit.sh) paths="${PATHS}"
-      bash <(curl -s ${URL}/scripts/git_commit.sh) paths="${PATHS}" \
-        git_branch=${BRANCH} \
-        git_commit_msg="Auto-commit: update dataset: add ${{ params.extend_dataset_by }} images"
+
+      echo "Commiting data changes to dvc"
+      dvc status
+      for path in data/annotations.csv data/images; do
+        dvc_path=${path}.dvc
+        [ -f "$dvc_path" ] && dvc commit --force $dvc_path || dvc add $path --file $dvc_path
+      done
+      echo "Pushind data to remote dvc cache"
+      time dvc push
+
+      echo "Committing changes to git"
+      git diff | tee
+      git commit --allow-empty \
+        -m "Auto-commit: update dataset: add ${EXTEND_DATASET_BY} images"
+      git push --set-upstream origin ${GIT_BRANCH}
+
 
   label_studio:
     image: $[[ images.label_studio.ref ]]
@@ -195,25 +229,40 @@ jobs:
         # BRANCH=$(git branch --show-current)
         # ... --param git_branch ${EXPERIMENT_BRANCH}
         descr: "Git reference where to CHECKOUT the code and data from"
+    workdir: /project
     env:
       PROJECT: /project
-    workdir: /project
+      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
     bash: |
       set -o xtrace
+
+      GIT_BRANCH=${{ params.git_branch }}
+      GIT_USER_EMAIL="job--${NEURO_JOB_ID}.cluster--${NEURO_JOB_CLUSTER}@neu.ro"
+      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
+      DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
+      REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
+      EXTEND_DATASET_BY=${{ params.extend_dataset_by }}
+
+      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
+      ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
+      git clone ${GIT_REPO} ${PROJECT}
       cd ${PROJECT}
+      git checkout ${GIT_BRANCH}
 
-      BRANCH=${{ params.git_branch }}
-      DVC_CACHE=${{ volumes.dvc_cache.mount }}
+      echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
+      dvc init -q -f
+      dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
+      dvc pull -f
 
-      URL=https://raw.githubusercontent.com/neuro-inc/ml-recipe-bone-age/${BRANCH}
-      bash <(curl -s ${URL}/scripts/git_checkout.sh) git_branch="${BRANCH}"
-      bash <(curl -s ${URL}/scripts/dvc_checkout.sh) dvc_cache_path="${DVC_CACHE}"
 
       echo "Extending dataset"
       python ${PROJECT}/data_utils/extend_dataset.py \
-        --cur_dataset tmp_data \
-        --full_dataset ${{ volumes.remote_dataset.mount }}/bone-age-tiny \
-        --nmber_of_imgs ${{ params.extend_dataset_by }} \
+        --cur_dataset /tmp/tmp_data \
+        --full_dataset ${REMOTE_DATASET_PATH}/bone-age-tiny \
+        --nmber_of_imgs ${EXTEND_DATASET_BY} \
         --skip_annotation_update
 
       echo "Starting label-studio"
@@ -221,8 +270,8 @@ jobs:
         --project_root ${PROJECT} \
         --ls_project_root ${PROJECT}/label-studio-project -- \
         start --use-gevent --no-browser \
-          --label-config ./project/label_studio/LabelConfig.xml \
-          --input-path ./project/tmp_data/images \
+          --label-config ${PROJECT}/label_studio/LabelConfig.xml \
+          --input-path /tmp/tmp_data/images \
           --input-format image-dir \
           --host ${NEURO_JOB_NAME}--${NEURO_JOB_OWNER}.jobs.${NEURO_JOB_CLUSTER}.org.neu.ro \
           --port 443 \
@@ -231,12 +280,22 @@ jobs:
           label-studio-project
       mv tmp_data/images/* data/images
 
-      PATHS="data/annotations.csv, data/"
-      bash <(curl -s ${URL}/scripts/dvc_commit.sh) paths="${PATHS}"
-      bash <(curl -s ${URL}/scripts/git_commit.sh) paths="${PATHS}" \
-        git_user_name="bot-${NEURO_JOB_OWNER}" \
-        git_user_email="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro" \
-        git_commit_msg="Auto-commit: annotate dataset: annotate $(ls ../label-studio-project/completions | grep -v ^d | wc -l) images"
+
+      echo "Commiting data changes to dvc"
+      dvc status
+      for path in data/annotations.csv data/images; do
+        dvc_path=${path}.dvc
+        [ -f "$dvc_path" ] && dvc commit --force $dvc_path || dvc add $path --file $dvc_path
+      done
+      echo "Pushind data to remote dvc cache"
+      time dvc push
+
+      echo "Committing changes to git"
+      N_IMAGES=$(ls ${PROJECT}/label-studio-project/completions | grep -v ^d | wc -l)
+      git commit --allow-empty \
+        -m "Auto-commit: annotate dataset: annotate ${N_IMAGES} images"
+      git push --set-upstream origin ${GIT_BRANCH}
+
 
   postgres:
     image: postgres:12.5
@@ -266,6 +325,7 @@ jobs:
         --backend-store-uri=postgresql://postgres:password@${{ inspect_job('postgres').name }}--${{ inspect_job('postgres').owner }}.platform-jobs:5432
         --default-artifact-root=${{ volumes.mlflow_artifacts.mount }}
 
+
   train:
     image: $[[ images.train.ref ]]
     preset: gpu-k80-small-p
@@ -275,34 +335,49 @@ jobs:
       - $[[ volumes.dvc_cache.ref_ro ]]
       - $[[ volumes.mlflow_artifacts.ref_rw ]]
       - secret:gh-rsa:/root/.ssh/id-rsa
+    workdir: /project
     env:
       EXPOSE_SSH: "yes"
       MLFLOW_TRACKING_URI: "http://${{ inspect_job('mlflow_server').name }}--${{ inspect_job('mlflow_server').owner }}.platform-jobs:5000"
       PROJECT: /project
       PYTHONPATH: /project
-    workdir: /project
+      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
     params:
       git_branch:
         # ... --param git_branch ${EXPERIMENT_BRANCH}
         descr: "Git reference where to CHECKOUT the code and data from"
     bash: |
       set -o xtrace
+
+      GIT_BRANCH=${{ params.git_branch }}
+      GIT_USER_EMAIL="job--${NEURO_JOB_ID}.cluster--${NEURO_JOB_CLUSTER}@neu.ro"
+      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
+      DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
+      REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
+      EXTEND_DATASET_BY=${{ params.extend_dataset_by }}
+
+      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
+      ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
+      git clone ${GIT_REPO} ${PROJECT}
       cd ${PROJECT}
+      git checkout ${GIT_BRANCH}
 
-      BRANCH=${{ params.git_branch }}
-      DVC_CACHE=${{ volumes.dvc_cache.mount }}
+      echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
+      dvc init -q -f
+      dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
+      dvc pull -f
 
-      URL=https://raw.githubusercontent.com/neuro-inc/ml-recipe-bone-age/${BRANCH}
-      bash <(curl -s ${URL}/scripts/git_checkout.sh) git_branch="${BRANCH}"
-      bash <(curl -s ${URL}/scripts/dvc_checkout.sh) dvc_cache_path="${DVC_CACHE}"
 
-      sleep infinity
-      echo "Training on $(ls data/images | wc -l) images"
+      echo "Training on $(ls ${PROJECT}/data/images | wc -l) images"
       python -u src/train.py \
         --data_dir=data/images \
         --annotation_csv=data/annotations.csv \
         --n_epoch=5 \
       || sleep infinity
+
 
   deploy_inference_platform: # todo: Alexey is working on it
     image: $[[ images.seldon.ref ]]
@@ -318,6 +393,7 @@ jobs:
       run_id:
     volumes:
       - ${{ volumes.mlflow_artifacts.remote }}/0/${{ params.run_id }}/artifacts/model/data/:/storage/
+
 
   locust: # todo: after inference
     image: locustio/locust:1.4.1
@@ -341,10 +417,12 @@ jobs:
       # TODO (yartem): Note, we don't have src volume anymore! take code from git.;
       -f $[[ volumes.src.mount ]]/locust.py --web-port 8080 -H $[[ params.endpoint_url ]]
 
+
   filebrowser:
     action: gh:neuro-actions/filebrowser@master
     args:
       volumes_project_remote: $[[ volumes.project.remote ]]
+
 
   webdav_dvc:
     action: gh:neuro-actions/webdav_server@master
@@ -352,6 +430,7 @@ jobs:
       volume_remote: $[[ volumes.dvc_cache.remote ]]
       job_name: $[[ flow.title ]]-webdav-dvc
       http_auth: ""
+
 
   webdav_mlflow:
     action: gh:neuro-actions/webdav_server@master

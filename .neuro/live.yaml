@@ -48,7 +48,7 @@ images:
     dockerfile: $[[ flow.workspace ]]/seldon_deployment/seldon.Dockerfile
     context: $[[ flow.workspace ]]/
   label_studio:
-    ref: image:$[[ flow.project_id ]]/label_studio:21.1.18
+    ref: image:$[[ flow.project_id ]]/label_studio:21.1.28
     dockerfile: $[[ flow.workspace ]]/label_studio/label_studio.Dockerfile
     context: $[[ flow.workspace ]]/label_studio
 
@@ -134,11 +134,13 @@ jobs:
     browse: True
     volumes:
       - ${{ volumes.dvc_cache.ref_rw }}
+      - ${{ volumes.remote_dataset.ref_rw }}
       - secret:gh-rsa:/root/.ssh/id-rsa
     params:
-      target_git_branch: "ys/datasets"
+      target_git_branch: "ys/label-studio"
       extend_dataset_by: "1"
     bash: |
+      set -o xtrace
       echo "Downloading base dataset"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -148,10 +150,10 @@ jobs:
       dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
       dvc pull
       cd ..
-
+      sleep infinity
       echo "Extending dataset"
       python project/data_utils/extend_dataset.py \
-        --cur_dataset project/data \
+        --cur_dataset project/tmp_data \
         --full_dataset ${{ volumes.remote_dataset.mount }}/bone-age-tiny \
         --nmber_of_imgs ${{ params.extend_dataset_by }} \
         --skip_annotation_update
@@ -162,7 +164,7 @@ jobs:
         --ls_project_root ./label-studio-project -- \
         start --use-gevent --no-browser \
           --label-config ./project/label_studio/LabelConfig.xml \
-          --input-path ./project/data/Images \
+          --input-path ./project/tmp_data \
           --input-format image-dir \
           --host ${NEURO_JOB_NAME}--${NEURO_JOB_OWNER}.jobs.${NEURO_JOB_CLUSTER}.org.neu.ro \
           --port 443 \
@@ -171,8 +173,9 @@ jobs:
 
       echo "Commiting new version of dataset."
       cd project
-      dvc commit data/Images.dvc -f && dvc push
-      git status && git add data/Images.dvc data/result.json
+      mv tmp_data/* data/
+      dvc commit data/images.dvc -f && dvc push
+      git status && git add data/images.dvc data/annotations.csv
       git config user.email "${NEURO_JOB_OWNER}@${NEURO_JOB_CLUSTER}"
       git config user.name "${NEURO_JOB_OWNER}"
       git commit -m "annotate $(ls ./label-studio-project/completions | grep -v ^d | wc -l) images in ${NEURO_JOB_ID}."

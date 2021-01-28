@@ -58,7 +58,7 @@ def extend_dataset(args: argparse.Namespace) -> None:
 
     if not args.skip_annotation_update:
         logger.info(f"Writing result({len(result_df)}) to current dataset {cur_annotations_csv}")
-    cur_annotations_csv.write_text(result_df.to_csv())
+        cur_annotations_csv.write_text(result_df.to_csv())
 
     logger.info(f"Writing rest({len(rest_df)}) to full dataset {full_annotations_csv}")
     full_annotations_csv.write_text(rest_df.to_csv())
@@ -91,8 +91,8 @@ def get_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--skip_annotation_update",
-        default=True,
-        action='store_false',
+        default=False,
+        action='store_true',
     )
     return parser
 

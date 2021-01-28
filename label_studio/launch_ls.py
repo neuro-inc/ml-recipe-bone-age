@@ -57,7 +57,7 @@ async def _run_label_studio(
 
 def _all_tasks_finished(ls_project_root: Path, project_root: Path) -> bool:
     completions_dir = ls_project_root / "completions"
-    imgs_dir = project_root / "data" / "images"
+    imgs_dir = project_root / "tmp_data" / "images"
     uploaded_imgs_dir = ls_project_root / "upload"
     completions = 0  # finished labels
     imgs = 0  # images in dataset
@@ -109,6 +109,7 @@ def _save_results(target_csv_file: Path, source: io.BytesIO):
     source_csv = pd.read_csv(source)
     source_transformed = source_csv.apply(_convert_row, axis=1)
     source_transformed = source_transformed.astype(target_csv.dtypes)
+    source_transformed.index = source_transformed.pop("id")
     merged = pd.concat([target_csv, source_transformed])
     merged.to_csv(target_csv_file, index=False)
 

@@ -148,6 +148,8 @@ jobs:
       git checkout --track origin/${{ params.target_git_branch }}
 
       cd ..
+      dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
+      dvc pull
       echo "Extending dataset"
       python project/data_utils/extend_dataset.py \
         --cur_dataset project/tmp_data \
@@ -168,11 +170,8 @@ jobs:
           --allow-serving-local-files \
           --init \
           label-studio-project
-      sleep infinity
       echo "Commiting new version of dataset."
       cd project
-      dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
-      dvc pull data/images.dvc
       mv tmp_data/images/* data/images
       dvc commit -f data/images.dvc data/annotations.csv.dvc
       git add data/images.dvc data/annotations.csv.dvc

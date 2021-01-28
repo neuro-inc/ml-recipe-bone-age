@@ -131,6 +131,8 @@ jobs:
       ssh-keyscan github.com >> ~/.ssh/known_hosts
       git clone ${GIT_REPO} ${PROJECT}
       cd ${PROJECT}
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
       git checkout ${GIT_BRANCH}
 
       echo "Checking that branch ${CREATE_GIT_BRANCH} does not yet exist"
@@ -141,8 +143,6 @@ jobs:
       git checkout -b ${CREATE_GIT_BRANCH}
 
       echo "Pushing new branch ${CREATE_GIT_BRANCH}"
-      git config user.email ${GIT_USER_EMAIL}
-      git config user.name ${GIT_USER_NAME}
       git commit --allow-empty -m 'empty commit'
       git push --set-upstream origin ${CREATE_GIT_BRANCH}
 
@@ -179,10 +179,10 @@ jobs:
       echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git config user.email ${GIT_USER_EMAIL}
-      git config user.name ${GIT_USER_NAME}
       git clone ${GIT_REPO} ${PROJECT}
       cd ${PROJECT}
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
       git checkout ${GIT_BRANCH}
 
       echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
@@ -249,10 +249,10 @@ jobs:
       echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git config user.email ${GIT_USER_EMAIL}
-      git config user.name ${GIT_USER_NAME}
       git clone ${GIT_REPO} ${PROJECT}
       cd ${PROJECT}
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
       git checkout ${GIT_BRANCH}
 
       echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
@@ -362,10 +362,10 @@ jobs:
       echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git config user.email ${GIT_USER_EMAIL}
-      git config user.name ${GIT_USER_NAME}
       git clone ${GIT_REPO} ${PROJECT}
       cd ${PROJECT}
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
       git checkout ${GIT_BRANCH}
 
       echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"

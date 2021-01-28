@@ -147,16 +147,16 @@ jobs:
       git clone git@github.com:neuro-inc/ml-recipe-bone-age.git project && cd project
       git checkout --track origin/${{ params.target_git_branch }}
 
-      cd ..
       dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
       dvc pull
       echo "Extending dataset"
-      python project/data_utils/extend_dataset.py \
-        --cur_dataset project/tmp_data \
+      python data_utils/extend_dataset.py \
+        --cur_dataset tmp_data \
         --full_dataset ${{ volumes.remote_dataset.mount }}/bone-age-tiny \
         --nmber_of_imgs ${{ params.extend_dataset_by }} \
         --skip_annotation_update
 
+      cd ..
       echo "Starting label-studio"
       python project/label_studio/launch_ls.py \
         --project_root ./project \
@@ -178,14 +178,6 @@ jobs:
       git status -v
       git config user.email "${NEURO_JOB_OWNER}@${NEURO_JOB_CLUSTER}"
       git config user.name "${NEURO_JOB_OWNER}"
-      while true; do
-          read -p "Commit into DVC and GIT repository (y/n) ?" yn
-          case $yn in
-              [Yy]* ) break;;
-              [Nn]* ) exit 1;;
-              * ) echo "Please answer yes or no.";;
-          esac
-      done
       dvc push
       git commit -m "annotate $(ls ../label-studio-project/completions | grep -v ^d | wc -l) images in ${NEURO_JOB_ID}"
       git push

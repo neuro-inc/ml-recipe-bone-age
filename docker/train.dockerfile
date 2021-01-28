@@ -6,7 +6,6 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     && apt-get -qq install --no-install-recommends \
         libsm6 \
         libxext6 \
-        curl \
         openssh-client \
         git \
     && apt-get -qq clean \

@@ -39,6 +39,7 @@ images:
     ref: image:$[[ flow.project_id ]]/seldon:21.1.23
     dockerfile: $[[ flow.workspace ]]/seldon_deployment/seldon.Dockerfile
     context: $[[ flow.workspace ]]/
+    build_preset: cpu-large
   label_studio:
     ref: image:$[[ flow.project_id ]]/label_studio:21.1.28
     dockerfile: $[[ flow.workspace ]]/label_studio/label_studio.Dockerfile

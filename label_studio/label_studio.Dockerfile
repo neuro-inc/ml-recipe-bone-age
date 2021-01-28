@@ -4,7 +4,6 @@ RUN apt update -y -qq && \
     apt install -y -qq \
         git \
         procps \
-        curl \
         openssh-client
 RUN pip install -U --no-cache-dir \
     dvc==1.10.1 \

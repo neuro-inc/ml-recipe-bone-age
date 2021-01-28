@@ -136,8 +136,8 @@ jobs:
       - ${{ volumes.dvc_cache.ref_rw }}
       - secret:gh-rsa:/root/.ssh/id-rsa
     params:
-      target_git_branch:
-        default: "ys/datasets"
+      target_git_branch: "ys/datasets"
+      extend_dataset_by: "1"
     bash: |
       echo "Downloading base dataset"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config

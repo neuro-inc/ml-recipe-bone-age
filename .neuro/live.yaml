@@ -18,8 +18,8 @@ volumes:
     remote: storage:ml_recipe_bone_age/dvc_cache
     mount: /ml-recipe-bone-age/dvc_cache
   postgress_storage:
-    #remote: disk://neuro-compute/yevheniisemendiak/disk-9299764c-fcd5-42b0-adcb-4313f62ce6be
-    remote: disk://neuro-compute/artemyushkovskiy/disk-24919d47-9a1c-40c0-9f75-f1464e23038a
+    remote: disk://neuro-compute/yevheniisemendiak/disk-9299764c-fcd5-42b0-adcb-4313f62ce6be
+    #remote: disk://neuro-compute/artemyushkovskiy/disk-24919d47-9a1c-40c0-9f75-f1464e23038a
     mount: /var/lib/postgresql/data
   mlflow_artifacts:
     remote: storage:ml_recipe_bone_age/mlruns

@@ -120,6 +120,8 @@ jobs:
       set -o xtrace
 
       GIT_BRANCH=${{ params.git_branch }}
+      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
+      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
       CREATE_GIT_BRANCH=${{ params.create_git_branch }}
       CREATE_GIT_BRANCH=${CREATE_BRANCH:-$GIT_BRANCH-experiment}
       DVC_CACHE=${{ volumes.dvc_cache.mount }}
@@ -168,7 +170,7 @@ jobs:
       set -o xtrace
 
       GIT_BRANCH=${{ params.git_branch }}
-      GIT_USER_EMAIL="job--${NEURO_JOB_ID}.cluster--${NEURO_JOB_CLUSTER}@neu.ro"
+      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
       GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
       DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
       REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
@@ -238,7 +240,7 @@ jobs:
       set -o xtrace
 
       GIT_BRANCH=${{ params.git_branch }}
-      GIT_USER_EMAIL="job--${NEURO_JOB_ID}.cluster--${NEURO_JOB_CLUSTER}@neu.ro"
+      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
       GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
       DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
       REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
@@ -351,7 +353,7 @@ jobs:
       set -o xtrace
 
       GIT_BRANCH=${{ params.git_branch }}
-      GIT_USER_EMAIL="job--${NEURO_JOB_ID}.cluster--${NEURO_JOB_CLUSTER}@neu.ro"
+      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
       GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
       DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
       REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}

@@ -1,10 +1,13 @@
 import logging
 from typing import List, Dict, Union, Any
+import logging
 
 from catalyst.dl.callbacks.logging import LoggerCallback, RunnerState
 
 import mlflow
 import mlflow.pytorch
+
+logger = logging.getLogger(__file__)
 
 
 class MLFlowLogging(LoggerCallback):

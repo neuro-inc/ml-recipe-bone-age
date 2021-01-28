@@ -1,10 +1,14 @@
 import torch
 import cv2
 import numpy as np
+import logging
 from torchvision import transforms
 from albumentations import (
     ShiftScaleRotate, RandomGamma, Compose
 )
+
+logger = logging.getLogger(__file__)
+
 
 class Crop(object):
     """Crop the image.

@@ -143,7 +143,7 @@ jobs:
       echo "Pushing new branch ${CREATE_GIT_BRANCH}"
       git config user.email ${GIT_USER_EMAIL}
       git config user.name ${GIT_USER_NAME}
-      git commit --allow-empty -m ''
+      git commit --allow-empty -m 'empty commit'
       git push --set-upstream origin ${CREATE_GIT_BRANCH}
 
 

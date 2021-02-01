@@ -82,8 +82,8 @@ jobs:
       FORCE=${{ params.force }}
 
       if [ -d "${DATASET_PATH}" ] && [ "${FORCE}" ]; then
-        echo "Dataset target directory already exist and force=true, deleting: '${DATASET_PATH}'"
-        rm -r ${DATASET_PATH}
+        echo "Dataset target directory already exist and force=true, deleting: '${DATASET_PATH}/*'"
+        rm -r ${DATASET_PATH}/*
       fi
 
       if [ ! -d "${DATASET_PATH}" ]; then

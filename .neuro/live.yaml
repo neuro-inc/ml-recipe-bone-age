@@ -77,13 +77,13 @@ jobs:
       DATASET_URL=${{ params.dataset_url }}
       DST=$(basename ${DATASET_URL} .zip)
       DATASET_BASE_PATH=${{ volumes.remote_dataset.mount }}
-      DATASET_PATH=${DATASET_BASE_PATH}
+      DATASET_PATH=${DATASET_BASE_PATH}/${DST}
 
       FORCE=${{ params.force }}
 
       if [ -d "${DATASET_PATH}" ] && [ "${FORCE}" ]; then
-        echo "Dataset target directory already exist and force=true, deleting: '${DATASET_PATH}/*'"
-        rm -r ${DATASET_PATH}/*
+        echo "Dataset target directory already exist and force=true, deleting: '${DATASET_PATH}'"
+        rm -r ${DATASET_PATH}
       fi
 
       if [ ! -d "${DATASET_PATH}" ]; then
@@ -203,7 +203,7 @@ jobs:
       echo "Extending dataset"
       python ${PROJECT}/data_utils/extend_dataset.py \
         --cur_dataset data \
-        --full_dataset ${REMOTE_DATASET_PATH} \
+        --full_dataset ${REMOTE_DATASET_PATH}/bone-age-tiny \
         --nmber_of_imgs ${EXTEND_DATASET_BY}
 
 
@@ -273,7 +273,7 @@ jobs:
       echo "Extending dataset"
       python ${PROJECT}/data_utils/extend_dataset.py \
         --cur_dataset /tmp/tmp_data \
-        --full_dataset ${REMOTE_DATASET_PATH} \
+        --full_dataset ${REMOTE_DATASET_PATH}/bone-age-tiny \
         --nmber_of_imgs ${EXTEND_DATASET_BY} \
         --skip_annotation_update
 
@@ -362,7 +362,6 @@ jobs:
         descr: "Git reference where to CHECKOUT the code and data from"
     bash: |
       set -o xtrace
-      sleep infinity
 
       GIT_BRANCH=${{ params.git_branch }}
       GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
@@ -419,7 +418,7 @@ jobs:
       - $[[ upload(volumes.src).ref_ro ]]
       - $[[ volumes.remote_dataset.ref_ro ]]
     env:
-      DATA_DIR: $[[ volumes.remote_dataset.mount ]]
+      DATA_DIR: $[[ volumes.remote_dataset.mount ]]/bone-age-tiny/
       PYTHONPATH: $[[ volumes.src.mount ]]/..
     params:
       endpoint_url:

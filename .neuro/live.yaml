@@ -8,32 +8,32 @@ defaults:
 
 volumes:
   data:
-    remote: storage://onprem-poc/alexeynayden/data
+    remote: storage:ml_recipe_bone_age/data
     mount: /ml-recipe-bone-age/data
     local: data
   remote_dataset:
-    remote: storage://onprem-poc/alexeynayden/dataset
+    remote: storage:ml_recipe_bone_age/dataset
     mount: /ml-recipe-bone-age/dataset
   dvc_cache:
-    remote: storage://onprem-poc/alexeynayden/dvc_cache
+    remote: storage:ml_recipe_bone_age/dvc_cache
     mount: /ml-recipe-bone-age/dvc_cache
   project:
-    remote: storage://onprem-poc/alexeynayden
+    remote: storage:ml_recipe_bone_age
     mount: /ml-recipe-bone-age
     local: .
   postgress_storage:
     remote: disk:disk-9299764c-fcd5-42b0-adcb-4313f62ce6be
     mount: /var/lib/postgresql/data
   mlflow_artifacts:
-    remote: storage://onprem-poc/alexeynayden/mlruns
+    remote: storage:ml_recipe_bone_age/mlruns
     mount: /usr/local/share/mlruns
     local: /usr/local/share/mlruns
   src:
-    remote: storage://onprem-poc/alexeynayden/src
+    remote: storage:ml_recipe_bone_age/src
     mount: /ml-recipe-bone-age/src
     local: src
   config:
-    remote: storage://onprem-poc/alexeynayden/config
+    remote: storage:ml_recipe_bone_age/config
     mount: /ml-recipe-bone-age/config
     local: config
 
@@ -241,7 +241,7 @@ jobs:
   deploy_inference_platform: # todo: Alexey is working on it
     image: $[[ images.seldon.ref ]]
     name: $[[ flow.title ]]-test-inference
-    preset: gpu-small
+    preset: gpu-k80-small-p
     http_port: 5000
     http_auth: False
     life_span: 5h

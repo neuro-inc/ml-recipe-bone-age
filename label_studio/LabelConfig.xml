@@ -1,0 +1,33 @@
+<View style="display: flex; margin: auto; text-align: center;"
+      >
+  <View style="flex: auto;">
+  <Header value="Pediatric Bone Age Assessment"/>
+  <Image name="image"
+         value="$image"
+         zoom="true"
+         zoomControl="true"
+         brightnessControl="true"
+         contrastControl="true"
+         >
+  </Image>
+
+  </View>
+  <View style="flex: auto; padding: 5%; margin: auto">
+    <Text name="hint"
+          value="Determine the gender and the pediatric maturity of a child's skeletal system."
+          selectionEnabled="false"
+    />
+    <Choices name="gender" toName="image" choice="single-radio">
+    <Choice alias="B" value="Boy" />
+    <Choice alias="G" value="Girl" />
+  </Choices>
+    <TextArea name="boneage"
+            toName="image"
+            placeholder="Pediatric age (months)"
+            maxSubmissions="1"
+            editable="true"
+            required="true"
+            perRegion="false"
+  />
+  </View>
+</View>

@@ -1,5 +1,6 @@
 kind: live
 title: ml-recipe-bone-age
+id: ml_recipe_bone_age
 
 defaults:
   preset: cpu-small
@@ -27,10 +28,6 @@ volumes:
     remote: storage://onprem-poc/alexeynayden/mlruns
     mount: /usr/local/share/mlruns
     local: /usr/local/share/mlruns
-  label_studio:
-    remote: storage://onprem-poc/alexeynayden/label-studio
-    mount: /ml-recipe-bone-age/label-studio-project
-    local: label_studio
   src:
     remote: storage://onprem-poc/alexeynayden/src
     mount: /ml-recipe-bone-age/src
@@ -52,7 +49,7 @@ images:
     context: $[[ flow.workspace ]]/
     build_preset: cpu-large
   label_studio:
-    ref: image:$[[ flow.project_id ]]/label_studio:21.1.18
+    ref: image:$[[ flow.project_id ]]/label_studio:21.1.28
     dockerfile: $[[ flow.workspace ]]/label_studio/label_studio.Dockerfile
     context: $[[ flow.workspace ]]/label_studio
 
@@ -69,21 +66,29 @@ jobs:
         default: http://data.neu.ro/bone-age-tiny.zip
         descr: URL of dataset to download
     bash: |
-      DST=$(basename ${{ params.dataset_path }} .tar)
+      DST=$(basename ${{ params.dataset_path }} .zip)
       if [ ! -e ${{ volumes.remote_dataset.mount }}/$DST ]; then
         neuro-extras data cp --extract --use-temp-dir ${{ params.dataset_path }} ${{ volumes.remote_dataset.mount }}/$DST;
+        cd ${{ volumes.remote_dataset.mount }}/$DST
+        mv data/test/*.png data/train
+        rmdir data/test
+        sed -n '1d;p' data/test.csv >> data/train.csv
+        rm data/test.csv
+        mv data/train/ images/
+        mv data/train.csv annotations.csv
+        rmdir data
       else
         echo "Dataset is already downloaded, skipping."
       fi
 
-  extend_data: # todo: need to adapt
+  extend_data:
     image: $[[ images.train.ref ]]
     preset: cpu-small
     detach: False
     volumes:
-      - ${{ volumes.remote_dataset.ref_ro }}
+      - ${{ volumes.remote_dataset.ref_rw }}
       - ${{ volumes.dvc_cache.ref_rw }}
-      - secret:/yevheniisemendiak/ysemendiak-gh-rsa:/root/.ssh/id-rsa
+      - secret:gh-rsa:/root/.ssh/id-rsa
     params:
       extend_dataset_by:
         default: "1"
@@ -101,41 +106,42 @@ jobs:
       cd project
       git checkout ${{ params.base_git_ref }}
       git checkout -b ${{ params.target_git_branch }} || git pull
-
-      dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
+      dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]] || ( dvc init -q && dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]] )
       dvc pull || echo "DVC cache not found, will be created..."
 
       echo "Extending dataset"
-      python label_studio/extend_dataset.py \
-        --cur_dataset data/Images \
-        --full_dataset ${{ volumes.remote_dataset.mount }}/images/Images/ \
+      python data_utils/extend_dataset.py \
+        --cur_dataset data \
+        --full_dataset ${{ volumes.remote_dataset.mount }}/bone-age-tiny \
         --nmber_of_imgs ${{ params.extend_dataset_by }}
 
       echo "Commiting changes"
-      dvc commit data/Images.dvc -f || dvc add data/Images/
+      dvc commit data/images.dvc -f || dvc add data/images/
+      dvc commit data/annotations.csv.dvc -f || dvc add data/annotations.csv
       dvc push
-      git add data/Images.dvc
-      git config user.email "${NEURO_JOB_ID}@${NEURO_JOB_CLUSTER}"
+      git add data/images.dvc data/annotations.csv.dvc data/.gitignore
+      git config user.email "${NEURO_JOB_OWNER}@${NEURO_JOB_CLUSTER}"
       git config user.name "${NEURO_JOB_OWNER}"
-      git commit -m "add ${{ params.extend_dataset_by }} img to dataset."
-      git push --force -u origin ${{ params.target_git_branch }}
+      git commit -m "add ${{ params.extend_dataset_by }} img to dataset in ${NEURO_JOB_ID}."
+      git push -u origin ${{ params.target_git_branch }}
 
-  label_studio: # todo: fix if we are doing it
+  label_studio:
     image: $[[ images.label_studio.ref ]]
     name: $[[ flow.title ]]-label-studio
     http_port: 443
-    http_auth: False
+    http_auth: True
     life_span: 1d
     detach: False
     browse: True
     volumes:
-      - ${{ volumes.label_studio.ref_rw }}
       - ${{ volumes.dvc_cache.ref_rw }}
-      - secret:/yevheniisemendiak/ysemendiak-gh-rsa:/root/.ssh/id-rsa
+      - ${{ volumes.remote_dataset.ref_rw }}
+      - secret:gh-rsa:/root/.ssh/id-rsa
     params:
-      target_git_branch:
-        default: "ys/datasets"
+      target_git_branch: "ys/label-studio"
+      extend_dataset_by: "1"
     bash: |
+      set -o xtrace
       echo "Downloading base dataset"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -144,37 +150,37 @@ jobs:
 
       dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
       dvc pull
+      echo "Extending dataset"
+      python data_utils/extend_dataset.py \
+        --cur_dataset tmp_data \
+        --full_dataset ${{ volumes.remote_dataset.mount }}/bone-age-tiny \
+        --nmber_of_imgs ${{ params.extend_dataset_by }} \
+        --skip_annotation_update
+
       cd ..
-
-      label-studio init \
-        --label-config ./project/label_studio/LabelConfig.xml \
-        --input-path ./project/data/Images \
-        --input-format image-dir \
-        --host ml-recipe-bone-age-label-studio--yevheniisemendiak.jobs.neuro-compute.org.neu.ro \
-        --port 443 \
-        --allow-serving-local-files \
-        label-studio-project
-
-      echo "Copying finished labels into local project"
-      cp -rT ${{ volumes.label_studio.mount }}/completions ./label-studio-project/completions || echo "No finished labels found!"
-      echo "Starting rsync daemon to sync labels changes back from local FS to storage"
-      lsyncd -delay 1 -rsync ./label-studio-project/completions ${{ volumes.label_studio.mount }}/completions
-
       echo "Starting label-studio"
-      completions_count=$(ls ./label-studio-project/completions | grep -v ^d | wc -l) || completions_count=0
       python project/label_studio/launch_ls.py \
         --project_root ./project \
         --ls_project_root ./label-studio-project -- \
-        start --use-gevent --no-browser ./label-studio-project
-      new_completions_count=$(ls ./label-studio-project/completions | grep -v ^d | wc -l)
-
+        start --use-gevent --no-browser \
+          --label-config ./project/label_studio/LabelConfig.xml \
+          --input-path ./project/tmp_data/images \
+          --input-format image-dir \
+          --host ${NEURO_JOB_NAME}--${NEURO_JOB_OWNER}.jobs.${NEURO_JOB_CLUSTER}.org.neu.ro \
+          --port 443 \
+          --allow-serving-local-files \
+          --init \
+          label-studio-project
       echo "Commiting new version of dataset."
       cd project
-      dvc commit data/Images.dvc -f && dvc push
-      git status && git add data/Images.dvc data/result.json
-      git config user.email "${NEURO_JOB_ID}@${NEURO_JOB_CLUSTER}"
+      mv tmp_data/images/* data/images
+      dvc commit -f data/images.dvc data/annotations.csv.dvc
+      git add data/images.dvc data/annotations.csv.dvc
+      git status -v
+      git config user.email "${NEURO_JOB_OWNER}@${NEURO_JOB_CLUSTER}"
       git config user.name "${NEURO_JOB_OWNER}"
-      git commit -m "annotate $(( new_completions_count - completions_count )) images."
+      dvc push
+      git commit -m "annotate $(ls ../label-studio-project/completions | grep -v ^d | wc -l) images in ${NEURO_JOB_ID}"
       git push
 
   postgres:
@@ -205,7 +211,7 @@ jobs:
         --backend-store-uri=postgresql://postgres:password@ml-recipe-bone-age-postgres--yevheniisemendiak.platform-jobs:5432
         --default-artifact-root=${{ volumes.mlflow_artifacts.mount }}
 
-  train: # todo: Y.S. working on it
+  train:
     image: $[[ images.train.ref ]]
     preset: gpu-k80-small-p
     detach: False
@@ -213,28 +219,24 @@ jobs:
     volumes:
       - $[[ volumes.dvc_cache.ref_ro ]]
       - $[[ volumes.mlflow_artifacts.ref_rw ]]
-      - secret:/yevheniisemendiak/ysemendiak-gh-rsa:/root/.ssh/id-rsa
+      - secret:gh-rsa:/root/.ssh/id-rsa
     env:
       EXPOSE_SSH: "yes"
-      MLFLOW_TRACKING_URI: "https://ml-recipe-bone-age-postgres-mlflow-server--yevheniisemendiak.jobs.neuro-compute.org.neu.ro"
-      PYTHONPATH: $[[ volumes.project.mount ]]
+      MLFLOW_TRACKING_URI: "https://ml-recipe-bone-age-mlflow-server--yevheniisemendiak.jobs.neuro-compute.org.neu.ro"
     params:
       target_git_branch:
-        default: "ys/datasets"
-    workdir: $[[ volumes.project.mount ]]
+        default: "ys/label-studio"
     bash: |
-        echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
-        ssh-keyscan github.com >> ~/.ssh/known_hosts
-        git clone git@github.com:neuro-inc/ml-recipe-bone-age.git $[[ volumes.project.mount ]]
-        cd $[[ volumes.project.mount ]]
-        git checkout --track origin/${{ params.target_git_branch }}
+      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
+      ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git clone git@github.com:neuro-inc/ml-recipe-bone-age.git project
+      cd project
+      git checkout --track origin/${{ params.target_git_branch }}
 
-        dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
-        dvc pull
-        python -u $[[ volumes.src.mount ]]/train.py \
-          --data_dir=$[[ volumes.data.mount ]]/data/train \
-          --annotation_csv=$[[ volumes.data.mount ]]/data/train.csv \
-          || sleep infinity
+      dvc remote add -d mounted_cache $[[ volumes.dvc_cache.mount ]]
+      dvc pull
+      export PYTHONPATH=`pwd`/src
+      python -u src/train.py --data_dir=data/images --annotation_csv=data/annotations.csv || sleep infinity
 
   deploy_inference_platform: # todo: Alexey is working on it
     image: $[[ images.seldon.ref ]]

@@ -241,7 +241,7 @@ jobs:
   deploy_inference_platform:
     image: $[[ images.seldon.ref ]]
     name: $[[ flow.title ]]-test-inference
-    preset: gpu-k80-small-p
+    preset: cpu-small
     http_port: 5000
     http_auth: False
     life_span: 5h

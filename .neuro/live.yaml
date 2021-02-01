@@ -8,32 +8,32 @@ defaults:
 
 volumes:
   data:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age/data
+    remote: storage:ml_recipe_bone_age/data
     mount: /ml-recipe-bone-age/data
     local: data
   remote_dataset:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age/dataset
+    remote: storage:ml_recipe_bone_age/dataset
     mount: /ml-recipe-bone-age/dataset
   dvc_cache:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age/dvc_cache
+    remote: storage:ml_recipe_bone_age/dvc_cache
     mount: /ml-recipe-bone-age/dvc_cache
   project:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age
+    remote: storage:ml_recipe_bone_age
     mount: /ml-recipe-bone-age
     local: .
   postgress_storage:
     remote: disk:disk-9299764c-fcd5-42b0-adcb-4313f62ce6be
     mount: /var/lib/postgresql/data
   mlflow_artifacts:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age/mlruns
+    remote: storage:ml_recipe_bone_age/mlruns
     mount: /usr/local/share/mlruns
     local: /usr/local/share/mlruns
   src:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age/src
+    remote: storage:ml_recipe_bone_age/src
     mount: /ml-recipe-bone-age/src
     local: src
   config:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age/config
+    remote: storage:ml_recipe_bone_age/config
     mount: /ml-recipe-bone-age/config
     local: config
 
@@ -47,6 +47,7 @@ images:
     ref: image:$[[ flow.project_id ]]/seldon:21.1.23
     dockerfile: $[[ flow.workspace ]]/seldon_deployment/seldon.Dockerfile
     context: $[[ flow.workspace ]]/
+    build_preset: cpu-large
   label_studio:
     ref: image:$[[ flow.project_id ]]/label_studio:21.1.28
     dockerfile: $[[ flow.workspace ]]/label_studio/label_studio.Dockerfile
@@ -237,10 +238,10 @@ jobs:
       export PYTHONPATH=`pwd`/src
       python -u src/train.py --data_dir=data/images --annotation_csv=data/annotations.csv || sleep infinity
 
-  deploy_inference_platform: # todo: Alexey is working on it
+  deploy_inference_platform:
     image: $[[ images.seldon.ref ]]
     name: $[[ flow.title ]]-test-inference
-    preset: gpu-k80-small-p
+    preset: cpu-small
     http_port: 5000
     http_auth: False
     life_span: 5h
@@ -252,7 +253,7 @@ jobs:
     volumes:
       - ${{ volumes.mlflow_artifacts.remote }}/0/${{ params.run_id }}/artifacts/model/data/:/storage/
 
-  locust: # todo: after inference
+  locust:
     image: locustio/locust:1.4.1
     name: $[[ flow.title ]]-locust
     http_port: 8080
@@ -264,11 +265,9 @@ jobs:
       endpoint_url:
     volumes:
       - $[[ upload(volumes.src).ref_ro ]]
-      - $[[ upload(volumes.config).ref_ro ]]
       - $[[ volumes.remote_dataset.ref_ro ]]
     env:
-      DOG_IDS: "n02085936, n02088094"
-      IMGS_DIR: $[[ volumes.remote_dataset.mount ]]/images/Images/
+      DATA_DIR: $[[ volumes.remote_dataset.mount ]]/bone-age-tiny/
       PYTHONPATH: $[[ volumes.src.mount ]]/..
     cmd: |
       -f $[[ volumes.src.mount ]]/locust.py --web-port 8080 -H $[[ params.endpoint_url ]]

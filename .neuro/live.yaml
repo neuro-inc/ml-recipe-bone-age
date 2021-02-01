@@ -238,7 +238,7 @@ jobs:
       export PYTHONPATH=`pwd`/src
       python -u src/train.py --data_dir=data/images --annotation_csv=data/annotations.csv || sleep infinity
 
-  deploy_inference_platform: # todo: Alexey is working on it
+  deploy_inference_platform:
     image: $[[ images.seldon.ref ]]
     name: $[[ flow.title ]]-test-inference
     preset: gpu-k80-small-p
@@ -253,7 +253,7 @@ jobs:
     volumes:
       - ${{ volumes.mlflow_artifacts.remote }}/0/${{ params.run_id }}/artifacts/model/data/:/storage/
 
-  locust: # todo: after inference
+  locust:
     image: locustio/locust:1.4.1
     name: $[[ flow.title ]]-locust
     http_port: 8080
@@ -265,9 +265,9 @@ jobs:
       endpoint_url:
     volumes:
       - $[[ upload(volumes.src).ref_ro ]]
-      - $[[ volumes.data.ref_ro ]]
+      - $[[ volumes.remote_dataset.ref_ro ]]
     env:
-      DATA_DIR: $[[ volumes.data.mount ]]/locust
+      DATA_DIR: $[[ volumes.remote_dataset.mount ]]/bone-age-tiny/
       PYTHONPATH: $[[ volumes.src.mount ]]/..
     cmd: |
       -f $[[ volumes.src.mount ]]/locust.py --web-port 8080 -H $[[ params.endpoint_url ]]

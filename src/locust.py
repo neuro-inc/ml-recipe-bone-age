@@ -11,7 +11,7 @@ from locust.contrib.fasthttp import FastHttpUser
 
 DATA_DIR = Path(os.environ["DATA_DIR"])
 IMG_DIR = DATA_DIR / "images"
-DATA_FILE = DATA_DIR / "data.csv"
+DATA_FILE = DATA_DIR / "annotations.csv"
 
 DATA = {}
 with open(DATA_FILE) as csv_file:

@@ -21,7 +21,7 @@ volumes:
     remote: storage:ml_recipe_bone_age
     mount: /ml-recipe-bone-age
     local: .
-  postgress_storage:
+  postgres_storage:
     #remote: disk://neuro-compute/yevheniisemendiak/disk-9299764c-fcd5-42b0-adcb-4313f62ce6be
     remote: disk://neuro-compute/artemyushkovskiy/disk-24919d47-9a1c-40c0-9f75-f1464e23038a
     mount: /var/lib/postgresql/data
@@ -309,7 +309,7 @@ jobs:
       git push --set-upstream origin ${GIT_BRANCH}
 
 
-  postgres:
+  mlflow_postgres:
     image: postgres:12.5
     name: $[[ flow.title ]]-postgres
     http_port: 5432
@@ -317,7 +317,7 @@ jobs:
     life_span: 30d
     detach: True
     volumes:
-      - ${{ volumes.postgress_storage.remote }}:/var/lib/postgresql/data:rw
+      - ${{ volumes.postgres_storage.remote }}:/var/lib/postgresql/data:rw
     env:
       POSTGRES_PASSWORD: password
       POSTGRES_INITDB_ARGS: ""
@@ -334,7 +334,7 @@ jobs:
       - ${{ volumes.mlflow_artifacts.ref_rw }}
     cmd: |
       server --host 0.0.0.0
-        --backend-store-uri=postgresql://postgres:password@${{ inspect_job('postgres').name }}--${{ inspect_job('postgres').owner }}.platform-jobs:5432
+        --backend-store-uri=postgresql://postgres:password@${{ inspect_job('mlflow_postgres').name }}--${{ inspect_job('mlflow_postgres').owner }}.platform-jobs:5432
         --default-artifact-root=${{ volumes.mlflow_artifacts.mount }}
 
 

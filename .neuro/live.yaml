@@ -212,12 +212,12 @@ jobs:
       for path in data/annotations.csv data/images; do
         dvc_path=${path}.dvc
         [ -f "$dvc_path" ] && dvc commit --force $dvc_path || dvc add $path --file $dvc_path
+        git add $dvc_path
       done
       echo "Pushind data to remote dvc cache"
       time dvc push
 
       echo "Committing changes to git"
-      git diff | tee
       git commit --allow-empty \
         -m "Auto-commit: update dataset: add ${EXTEND_DATASET_BY} images"
       git push --set-upstream origin ${GIT_BRANCH}
@@ -298,6 +298,7 @@ jobs:
       for path in data/annotations.csv data/images; do
         dvc_path=${path}.dvc
         [ -f "$dvc_path" ] && dvc commit --force $dvc_path || dvc add $path --file $dvc_path
+        git add $dvc_path
       done
       echo "Pushind data to remote dvc cache"
       time dvc push
@@ -346,6 +347,7 @@ jobs:
     volumes:
       - $[[ volumes.dvc_cache.ref_ro ]]
       - $[[ volumes.mlflow_artifacts.ref_rw ]]
+      - $[[ volumes.remote_dataset.ref_ro ]]
       - secret:gh-rsa:/root/.ssh/id-rsa
     workdir: /project
     env:
@@ -384,9 +386,10 @@ jobs:
 
       echo "Training on $(ls ${PROJECT}/data/images | wc -l) images"
       python -u src/train.py \
-        --data_dir=data/images \
-        --annotation_csv=data/annotations.csv \
-        --n_epoch=5 \
+        --data_dir=${PROJECT}/data/images \
+        --annotation_csv=${PROJECT}/data/annotations.csv \
+        --prev_ckpt ${REMOTE_DATASET_PATH}/bone-age-tiny/models/bone_age.epoch02-err0.139.pth \
+        --n_epoch=10 \
       || sleep infinity
 
 
@@ -405,6 +408,7 @@ jobs:
     volumes:
       - ${{ volumes.mlflow_artifacts.remote }}/0/${{ params.run_id }}/artifacts/model/data/:/storage/
 
+
   locust:
     image: locustio/locust:1.4.1
     name: $[[ flow.title ]]-locust
@@ -421,7 +425,8 @@ jobs:
       PYTHONPATH: $[[ volumes.src.mount ]]/..
     params:
       endpoint_url:
-        default: ""
+        # ${{ inspect_job('deploy_inference_platform').http_url }}
+        default: "uri"
     cmd: |
       -f $[[ volumes.src.mount ]]/locust.py --web-port 8080 -H $[[ params.endpoint_url ]]
 

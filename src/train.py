@@ -17,7 +17,7 @@ import catalyst.dl.callbacks as clb
 from catalyst.dl.runner import SupervisedRunner
 from catalyst.utils import set_global_seed
 
-from src.model import m46
+from src.model import m46, convert_checkpoint
 from src.dataset import get_loaders
 from src.const import LOG_DIR, DATA_PATH, MODELS_DIR
 from src.mlflow_logger import MLFlowLogging
@@ -35,7 +35,17 @@ def main(args: Namespace) -> None:
     train_loader, test_loader = get_loaders(args)
     loaders = OrderedDict([('train', train_loader), ('valid', test_loader)])
 
-    model = m46(input_shape=input_shape, model_type=args.model_type)
+    prev_ckpt = args.prev_ckpt
+    if prev_ckpt:
+        logger.info(f"Loading pre-trained model from {prev_ckpt}")
+        checkpoint = convert_checkpoint(
+            args.prev_ckpt,
+            {'input_shape': input_shape, 'model_type': 'age'},
+        )
+        model = m46.from_ckpt(checkpoint)
+    else:
+        model = m46(input_shape=input_shape, model_type=args.model_type)
+
     criterion = model.loss_function
     optimizer = torch.optim.Adam(lr=2e-5, betas=(0.5, 0.999), params=model.parameters())
 

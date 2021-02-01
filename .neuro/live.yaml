@@ -77,7 +77,7 @@ jobs:
       DATASET_URL=${{ params.dataset_url }}
       DST=$(basename ${DATASET_URL} .zip)
       DATASET_BASE_PATH=${{ volumes.remote_dataset.mount }}
-      DATASET_PATH=${DATASET_BASE_PATH}/${DST}
+      DATASET_PATH=${DATASET_BASE_PATH}
 
       FORCE=${{ params.force }}
 
@@ -203,7 +203,7 @@ jobs:
       echo "Extending dataset"
       python ${PROJECT}/data_utils/extend_dataset.py \
         --cur_dataset data \
-        --full_dataset ${REMOTE_DATASET_PATH}/bone-age-tiny \
+        --full_dataset ${REMOTE_DATASET_PATH} \
         --nmber_of_imgs ${EXTEND_DATASET_BY}
 
 
@@ -236,7 +236,7 @@ jobs:
       - ${{ volumes.remote_dataset.ref_rw }}
       - secret:gh-rsa:/root/.ssh/id-rsa
     params:
-      extend_dataset_by: "1"
+      extend_dataset_by: "5"
       git_branch:
         # BRANCH=$(git branch --show-current)
         # ... --param git_branch ${EXPERIMENT_BRANCH}
@@ -273,7 +273,7 @@ jobs:
       echo "Extending dataset"
       python ${PROJECT}/data_utils/extend_dataset.py \
         --cur_dataset /tmp/tmp_data \
-        --full_dataset ${REMOTE_DATASET_PATH}/bone-age-tiny \
+        --full_dataset ${REMOTE_DATASET_PATH} \
         --nmber_of_imgs ${EXTEND_DATASET_BY} \
         --skip_annotation_update
 
@@ -362,6 +362,7 @@ jobs:
         descr: "Git reference where to CHECKOUT the code and data from"
     bash: |
       set -o xtrace
+      sleep infinity
 
       GIT_BRANCH=${{ params.git_branch }}
       GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
@@ -383,14 +384,12 @@ jobs:
       dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
       dvc pull -f
 
-      sleep infinity
       echo "Training on $(ls ${PROJECT}/data/images | wc -l) images"
       python -u src/train.py \
         --data_dir=${PROJECT}/data/images \
         --annotation_csv=${PROJECT}/data/annotations.csv \
         --n_epoch=10 \
       || sleep infinity
-#        --prev_ckpt ${REMOTE_DATASET_PATH}/bone-age-tiny/models/bone_age.epoch02-err0.139.pth \
 
   deploy_inference_platform:
     image: $[[ images.seldon.ref ]]
@@ -420,7 +419,7 @@ jobs:
       - $[[ upload(volumes.src).ref_ro ]]
       - $[[ volumes.remote_dataset.ref_ro ]]
     env:
-      DATA_DIR: $[[ volumes.remote_dataset.mount ]]/bone-age-tiny/
+      DATA_DIR: $[[ volumes.remote_dataset.mount ]]
       PYTHONPATH: $[[ volumes.src.mount ]]/..
     params:
       endpoint_url:

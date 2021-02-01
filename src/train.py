@@ -35,19 +35,7 @@ def main(args: Namespace) -> None:
     train_loader, test_loader = get_loaders(args)
     loaders = OrderedDict([('train', train_loader), ('valid', test_loader)])
 
-    prev_ckpt = args.prev_ckpt
-    if prev_ckpt:
-        logger.info(f"Loading pre-trained model from {prev_ckpt}")
-        # NOTE: the model won't be freezed!
-        checkpoint = convert_checkpoint(
-            args.prev_ckpt,
-            {'input_shape': input_shape, 'model_type': 'age'},
-        )
-        model = m46.from_ckpt(checkpoint)
-        logger.info(f"Freezing backbones")
-        model.freeze_backbones()
-    else:
-        model = m46(input_shape=input_shape, model_type=args.model_type)
+    model = m46(input_shape=input_shape, model_type=args.model_type)
 
     criterion = model.loss_function
     optimizer = torch.optim.Adam(lr=2e-5, betas=(0.5, 0.999), params=model.parameters())

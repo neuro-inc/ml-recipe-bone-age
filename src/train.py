@@ -38,11 +38,14 @@ def main(args: Namespace) -> None:
     prev_ckpt = args.prev_ckpt
     if prev_ckpt:
         logger.info(f"Loading pre-trained model from {prev_ckpt}")
+        # NOTE: the model won't be freezed!
         checkpoint = convert_checkpoint(
             args.prev_ckpt,
             {'input_shape': input_shape, 'model_type': 'age'},
         )
         model = m46.from_ckpt(checkpoint)
+        logger.info(f"Freezing backbones")
+        model.freeze_backbones()
     else:
         model = m46(input_shape=input_shape, model_type=args.model_type)
 

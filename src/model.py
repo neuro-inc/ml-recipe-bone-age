@@ -56,6 +56,12 @@ class m46(nn.Module):
             self._loss_function = nn.BCELoss()
         self._initialize_weights()
 
+    def freeze_backbones(self):
+        for name, param in self.fcc.named_parameters():
+            if name == 'preds':
+                continue
+            param.requires_grad = False
+
     def _vgg_block(self, in_channels, out_channels, block_num, kernel_size=3):
         b = f'block{block_num}_'
         vgg_block = nn.Sequential(OrderedDict([

@@ -383,15 +383,14 @@ jobs:
       dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
       dvc pull -f
 
-
+      sleep infinity
       echo "Training on $(ls ${PROJECT}/data/images | wc -l) images"
       python -u src/train.py \
         --data_dir=${PROJECT}/data/images \
         --annotation_csv=${PROJECT}/data/annotations.csv \
-        --prev_ckpt ${REMOTE_DATASET_PATH}/bone-age-tiny/models/bone_age.epoch02-err0.139.pth \
         --n_epoch=10 \
       || sleep infinity
-
+#        --prev_ckpt ${REMOTE_DATASET_PATH}/bone-age-tiny/models/bone_age.epoch02-err0.139.pth \
 
   deploy_inference_platform:
     image: $[[ images.seldon.ref ]]

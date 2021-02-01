@@ -17,13 +17,22 @@ volumes:
   dvc_cache:
     remote: storage:ml_recipe_bone_age/dvc_cache
     mount: /ml-recipe-bone-age/dvc_cache
+  project:
+    remote: storage:ml_recipe_bone_age
+    mount: /ml-recipe-bone-age
+    local: .
   postgress_storage:
-    remote: disk://neuro-compute/yevheniisemendiak/disk-9299764c-fcd5-42b0-adcb-4313f62ce6be
-    #remote: disk://neuro-compute/artemyushkovskiy/disk-24919d47-9a1c-40c0-9f75-f1464e23038a
+    #remote: disk://neuro-compute/yevheniisemendiak/disk-9299764c-fcd5-42b0-adcb-4313f62ce6be
+    remote: disk://neuro-compute/artemyushkovskiy/disk-24919d47-9a1c-40c0-9f75-f1464e23038a
     mount: /var/lib/postgresql/data
   mlflow_artifacts:
     remote: storage:ml_recipe_bone_age/mlruns
     mount: /usr/local/share/mlruns
+  src:
+    remote: storage:ml_recipe_bone_age/src
+    mount: /ml-recipe-bone-age/src
+    local: src
+
 
 images:
   train:
@@ -381,10 +390,10 @@ jobs:
       || sleep infinity
 
 
-  deploy_inference_platform: # todo: Alexey is working on it
+  deploy_inference_platform:
     image: $[[ images.seldon.ref ]]
     name: $[[ flow.title ]]-test-inference
-    preset: gpu-k80-small-p
+    preset: cpu-small
     http_port: 5000
     http_auth: False
     life_span: 5h
@@ -396,8 +405,7 @@ jobs:
     volumes:
       - ${{ volumes.mlflow_artifacts.remote }}/0/${{ params.run_id }}/artifacts/model/data/:/storage/
 
-
-  locust: # todo: after inference
+  locust:
     image: locustio/locust:1.4.1
     name: $[[ flow.title ]]-locust
     http_port: 8080
@@ -405,18 +413,16 @@ jobs:
     life_span: 1d
     detach: True
     browse: True
-    params:
-      endpoint_url:
     volumes:
       - $[[ upload(volumes.src).ref_ro ]]
-      - $[[ upload(volumes.config).ref_ro ]]
       - $[[ volumes.remote_dataset.ref_ro ]]
     env:
-      DOG_IDS: "n02085936, n02088094"
-      IMGS_DIR: $[[ volumes.remote_dataset.mount ]]/images/Images/
+      DATA_DIR: $[[ volumes.remote_dataset.mount ]]/bone-age-tiny/
       PYTHONPATH: $[[ volumes.src.mount ]]/..
+    params:
+      endpoint_url:
+        default: ""
     cmd: |
-      # TODO (yartem): Note, we don't have src volume anymore! take code from git.;
       -f $[[ volumes.src.mount ]]/locust.py --web-port 8080 -H $[[ params.endpoint_url ]]
 
 

@@ -36,8 +36,8 @@ class LoadGenerator(FastHttpUser):
         img_id, data = random.choice(list(DATA.items()))
         target_image = IMG_DIR / f"{img_id}.png"
 
-        payload = dict(strData=base64.encodebytes(target_image.read_bytes()))
-        with self.client.post("", files=payload, catch_response=True) as response:
+        payload = dict(strData=base64.encodebytes(target_image.read_bytes()).decode())
+        with self.client.post("", json=payload, catch_response=True) as response:
             model_response = json.loads(response.text)["data"]
             model_predicted_boneage = float(model_response["tensor"]["values"][0])
 

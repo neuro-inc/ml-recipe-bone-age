@@ -318,7 +318,7 @@ jobs:
     image: neuromation/mlflow:1.11.0
     name: $[[ flow.title ]]-mlflow-server
     http_port: 5000
-    http_auth: True
+    http_auth: False  # sic
     life_span: 30d
     detach: True
     volumes:
@@ -357,7 +357,6 @@ jobs:
       GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
       DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
       REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
-      EXTEND_DATASET_BY=${{ params.extend_dataset_by }}
 
       echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config

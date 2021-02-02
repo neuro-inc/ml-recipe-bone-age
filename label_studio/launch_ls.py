@@ -109,7 +109,6 @@ def _save_results(target_csv_file: Path, source: io.BytesIO):
     source_csv = pd.read_csv(source)
     source_transformed = source_csv.apply(_convert_row, axis=1)
     source_transformed = source_transformed.astype(target_csv.dtypes)
-    source_transformed = source_transformed.set_index("id")
     merged = pd.concat([target_csv, source_transformed], sort=False)
     merged.to_csv(target_csv_file)
 

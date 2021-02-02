@@ -45,7 +45,7 @@ images:
     dockerfile: $[[ flow.workspace ]]/docker/cpu-worker.dockerfile
     context: $[[ flow.workspace ]]/
   seldon:
-    ref: image:$[[ flow.project_id ]]/seldon:21.1.23
+    ref: image://neuro-compute/artemyushkovskiy/$[[ flow.project_id ]]/seldon:21.1.23
     dockerfile: $[[ flow.workspace ]]/seldon_deployment/seldon.Dockerfile
     context: $[[ flow.workspace ]]/
     build_preset: cpu-large
@@ -361,6 +361,7 @@ jobs:
         # ... --param git_branch ${EXPERIMENT_BRANCH}
         descr: "Git reference where to CHECKOUT the code and data from"
     bash: |
+      pip install mlflow -q
       set -o xtrace
 
       GIT_BRANCH=${{ params.git_branch }}
@@ -420,7 +421,7 @@ jobs:
     env:
       DATA_DIR: $[[ volumes.remote_dataset.mount ]]/bone-age-tiny/
       PYTHONPATH: $[[ volumes.src.mount ]]/..
-    # Job URI: https://ml-recipe-bone-age-test-inference--artemyushkovskiy.jobs.neuro-compute.org.neu.ro/predict
+    # Job URI: https://ml-recipe-bone-age-test-inference--yevheniisemendiak.jobs.neuro-compute.org.neu.ro/predict
     # Seldon URI: https://seldon.onprem-poc.org.neu.ro/seldon/seldon/my-model/api/v1.0/predictions
     cmd: |
       -f $[[ volumes.src.mount ]]/locust.py --users 1 --spawn-rate 1 --web-port 8080

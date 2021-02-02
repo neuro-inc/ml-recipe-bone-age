@@ -3,8 +3,7 @@ import torch
 import pandas as pd
 import cv2
 import numpy as np
-from const import DATA_PATH
-
+import logging
 from torchvision.datasets import VisionDataset
 import matplotlib.pyplot as plt
 from transforms import get_transform
@@ -12,6 +11,11 @@ from itertools import islice
 from typing import Tuple, Dict
 from argparse import Namespace
 from torch.utils.data import DataLoader
+
+from src.const import DATA_PATH
+
+
+logger = logging.getLogger()
 
 
 def split_dataset(df, test_fold, nfolds, root_dir, gender='a'):
@@ -29,8 +33,9 @@ def split_dataset(df, test_fold, nfolds, root_dir, gender='a'):
     root_dir = Path(root_dir)
 
     # make sure all listed radiographs are actually present
-    radiograph_list = [f.stem for f in root_dir.glob('*.png')]
-    df = df.loc[df['id'].isin(radiograph_list)]
+    radiograph_set = {int(f.stem) for f in root_dir.glob('*.png')}
+    df['id'] = df['id'].astype(int)
+    df = df.loc[df['id'].isin(radiograph_set)]
 
     if gender == 'm':
         df = df.loc[df['male']]
@@ -69,9 +74,8 @@ class BoneAgeDataset(VisionDataset):
         """
         super(BoneAgeDataset, self).__init__(Path(root), transform=transform,
                                              target_transform=target_transform)
-        # make sure all listed radiographs are actually present
-        radiographs = [f.stem for f in self.root.glob('*.png')]
-        self.bone_age_frame = bone_age_frame.loc[bone_age_frame['id'].isin(radiographs)]
+        bone_age_frame['id'] = bone_age_frame['id'].astype(int)
+        self.bone_age_frame = bone_age_frame#.loc[bone_age_frame['id']]
 
         assert model_type in ['age', 'gender']
         self.model_type = model_type
@@ -107,7 +111,9 @@ def get_loaders(args: Namespace)-> Tuple[DataLoader, DataLoader]:
                  'crop_size': args.crop_size}
     annotation_frame = pd.read_csv(args.annotation_csv)
     test_fold, n_folds = args.dataset_split
+    logger.info(f"Input dataset split: {test_fold}, {n_folds}")
     train_df, test_df = split_dataset(annotation_frame, test_fold, n_folds, args.data_dir, gender='a')
+    logger.info(f"Input dataset split DF: {len(train_df)}, {len(test_df)}")
     # train_df = train_df.iloc[:160, :]
 
     data_frames = {'train': train_df, 'val': test_df}
@@ -131,6 +137,8 @@ def get_loaders(args: Namespace)-> Tuple[DataLoader, DataLoader]:
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+
     model_type = 'age'
     bone_age_frame = pd.read_csv(DATA_PATH / 'train.csv')
     root_dir = DATA_PATH / 'train'
@@ -138,7 +146,7 @@ if __name__ == '__main__':
     nfolds = 9
     for test_fold in range(1, nfolds + 1):
         train_df, test_df = split_dataset(bone_age_frame, test_fold, nfolds, '../data/train', gender='a')
-        print(len(train_df), len(test_df))
+        logger.info(f"train_df: {len(train_df)}, test_df: {len(test_df)}")
 
     crop_dict = {'crop_center': (1040, 800), 'crop_size': (2000, 1500)}
     scale = 0.25

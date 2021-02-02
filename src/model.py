@@ -1,9 +1,12 @@
 from pathlib import Path
 from typing import Dict, Any
+import logging
 
 import torch
 from collections import OrderedDict
 import torch.nn as nn
+
+logger = logging.getLogger(__file__)
 
 
 class m46(nn.Module):
@@ -94,7 +97,7 @@ class m46(nn.Module):
             'checkpoint_data': {'params': self._params}
         }
         torch.save(checkpoint, path_to_save)
-        print(f'Model saved to {path_to_save}.')
+        logger.info(f'Model saved to {path_to_save}.')
 
     @property
     def init_params(self) -> Dict[str, Any]:
@@ -110,9 +113,9 @@ class m46(nn.Module):
         model = cls(**ckpt['checkpoint_data']['params'])
         model.load_state_dict(ckpt['model_state_dict'])
         if type(checkpoint) == Path:
-            print(f'Model was loaded from {checkpoint}.')
+            logger.info(f'Model was loaded from {checkpoint}.')
         else:
-            print(f'Model was loaded from dictionary.')
+            logger.info(f'Model was loaded from dictionary.')
         return model
 
 
@@ -134,6 +137,8 @@ def convert_checkpoint(checkpoint: Path or OrderedDict,
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+
     # Number of GPUs available. Use 0 for CPU mode.
     ngpu = 1
 
@@ -149,4 +154,4 @@ if __name__ == '__main__':
         model = nn.DataParallel(model, list(range(ngpu)))
 
     # Print the model
-    print(model)
+    logger.info(f"Model: {model}")

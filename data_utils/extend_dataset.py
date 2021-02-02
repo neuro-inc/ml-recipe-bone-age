@@ -99,5 +99,4 @@ def get_parser() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger()
     extend_dataset(get_parser().parse_args())

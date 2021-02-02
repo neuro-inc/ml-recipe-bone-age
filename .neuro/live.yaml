@@ -352,7 +352,7 @@ jobs:
     workdir: /project
     env:
       EXPOSE_SSH: "yes"
-      MLFLOW_TRACKING_URI: "http://${{ inspect_job('mlflow_server').name }}--${{ inspect_job('mlflow_server').owner }}.platform-jobs:5000"
+      MLFLOW_TRACKING_URI: "${{ inspect_job('mlflow_server').internal_hostname }}:5000"
       PROJECT: /project
       PYTHONPATH: /project
       GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git

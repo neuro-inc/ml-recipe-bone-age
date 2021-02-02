@@ -38,8 +38,12 @@ class LoadGenerator(FastHttpUser):
 
         payload = dict(strData=base64.encodebytes(target_image.read_bytes()).decode())
         with self.client.post("", json=payload, catch_response=True) as response:
-            model_response = json.loads(response.text)["data"]
-            model_predicted_boneage = float(model_response["tensor"]["values"][0])
+            try:
+                model_response = json.loads(response.text)["data"]
+                model_predicted_boneage = float(model_response["tensor"]["values"][0])
+            except:
+                print(f"Received before error: `{response.text}`")
+                raise
 
             if abs(model_predicted_boneage - data["boneage"]) >= EPSILON:
                     response.failure(

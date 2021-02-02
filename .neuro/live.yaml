@@ -420,12 +420,10 @@ jobs:
     env:
       DATA_DIR: $[[ volumes.remote_dataset.mount ]]/bone-age-tiny/
       PYTHONPATH: $[[ volumes.src.mount ]]/..
-    params:
-      endpoint_url:
-        # ${{ inspect_job('deploy_inference_platform').http_url }}
-        default: "uri"
+    # Job URI: https://ml-recipe-bone-age-test-inference--artemyushkovskiy.jobs.neuro-compute.org.neu.ro/predict
+    # Seldon URI: https://seldon.onprem-poc.org.neu.ro/seldon/seldon/my-model/api/v1.0/predictions
     cmd: |
-      -f $[[ volumes.src.mount ]]/locust.py --web-port 8080 -H $[[ params.endpoint_url ]]
+      -f $[[ volumes.src.mount ]]/locust.py --users 1 --spawn-rate 1 --web-port 8080
 
 
   filebrowser:

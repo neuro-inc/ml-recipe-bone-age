@@ -8,6 +8,8 @@ RUN export DEBIAN_FRONTEND=noninteractive \
         libxext6 \
         openssh-client \
         git \
+        wget \
+        unzip \
     && apt-get -qq clean \
     && apt-get -qq autoremove \
     && rm -rf /var/lib/apt/lists/*

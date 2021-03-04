@@ -20,8 +20,8 @@ with open(DATA_FILE) as csv_file:
         try:
             DATA[row[1].strip()] = {
                 "boneage": int(row[2].strip()),
-                "male": row[3].strip() == "True"
-                }
+                "male": row[3].strip() == "True",
+            }
         except Exception:
             # dirty way to handle header row
             pass
@@ -46,13 +46,13 @@ class LoadGenerator(FastHttpUser):
                 raise
 
             if abs(model_predicted_boneage - data["boneage"]) >= EPSILON:
-                    response.failure(
-                        "Wrong model prediction, "
-                        f"got {int(model_predicted_boneage)}, "
-                        f"need {data['boneage']}!"
-                    )
-                    logging.warning(
-                        "Wrong model prediction, "
-                        f"got {int(model_predicted_boneage)}, "
-                        f"need {data['boneage']}!"
-                    )
+                response.failure(
+                    f"Wrong model prediction for ID {img_id}, "
+                    f"got {int(model_predicted_boneage)}, "
+                    f"need {data['boneage']}!"
+                )
+                logging.warning(
+                    f"Wrong model prediction for ID {img_id}, "
+                    f"got {int(model_predicted_boneage)}, "
+                    f"need {data['boneage']}!"
+                )

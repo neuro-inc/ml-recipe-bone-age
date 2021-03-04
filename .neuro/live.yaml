@@ -8,51 +8,50 @@ defaults:
 
 volumes:
   data:
-    remote: storage:ml_recipe_bone_age/data
+    remote: storage:${{ flow.project_id }}/data
     mount: /ml-recipe-bone-age/data
     local: data
   remote_dataset:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age/dataset
+    remote: storage:${{ flow.project_id }}/dataset
     mount: /ml-recipe-bone-age/dataset
   dvc_cache:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age/dvc_cache
+    remote: storage:${{ flow.project_id }}/dvc_cache
     mount: /ml-recipe-bone-age/dvc_cache
   project:
     remote: storage:ml_recipe_bone_age
     mount: /ml-recipe-bone-age
     local: .
   postgres_storage:
-    remote: disk://neuro-compute/yevheniisemendiak/disk-9299764c-fcd5-42b0-adcb-4313f62ce6be
-#    remote: disk://neuro-compute/artemyushkovskiy/disk-24919d47-9a1c-40c0-9f75-f1464e23038a
+    remote: disk:ml-recipe-bone-age-postgres
     mount: /var/lib/postgresql/data
   mlflow_artifacts:
-    remote: storage://neuro-compute/yevheniisemendiak/ml_recipe_bone_age/mlruns
+    remote: storage:${{ flow.project_id }}/mlruns
     mount: /usr/local/share/mlruns
   src:
-    remote: storage:ml_recipe_bone_age/src
+    remote: storage:${{ flow.project_id }}/src
     mount: /ml-recipe-bone-age/src
     local: src
 
 
 images:
   train:
-    ref: image:$[[ flow.project_id ]]:v1
-    dockerfile: $[[ flow.workspace ]]/docker/train.dockerfile
-    context: $[[ flow.workspace ]]/
+    ref: image:${{ flow.project_id }}:v2
+    dockerfile: ${{ flow.workspace }}/docker/train.dockerfile
+    context: ${{ flow.workspace }}/
     build_preset: gpu-k80-small-p
   cpu_worker:
-    ref: image:$[[ flow.project_id ]]/cpu_worker:v1
-    dockerfile: $[[ flow.workspace ]]/docker/cpu-worker.dockerfile
-    context: $[[ flow.workspace ]]/
-  seldon:
-    ref: image://neuro-compute/artemyushkovskiy/$[[ flow.project_id ]]/seldon:21.1.23
-    dockerfile: $[[ flow.workspace ]]/seldon_deployment/seldon.Dockerfile
-    context: $[[ flow.workspace ]]/
+    ref: image:${{ flow.project_id }}/cpu_worker:v1
+    dockerfile: ${{ flow.workspace }}/docker/cpu-worker.dockerfile
+    context: ${{ flow.workspace }}/
+  inference:
+    ref: image:${{ flow.project_id }}/inference:21.1.23
+    dockerfile: ${{ flow.workspace }}/seldon_deployment/seldon.Dockerfile
+    context: ${{ flow.workspace }}/
     build_preset: cpu-large
   label_studio:
-    ref: image:$[[ flow.project_id ]]/label_studio:21.1.28
-    dockerfile: $[[ flow.workspace ]]/label_studio/label_studio.Dockerfile
-    context: $[[ flow.workspace ]]/label_studio
+    ref: image:${{ flow.project_id }}/label_studio:21.1.28
+    dockerfile: ${{ flow.workspace }}/label_studio/label_studio.Dockerfile
+    context: ${{ flow.workspace }}/label_studio
 
 jobs:
 
@@ -224,8 +223,8 @@ jobs:
 
 
   label_studio:
-    image: $[[ images.label_studio.ref ]]
-    name: $[[ flow.title ]]-label-studio
+    image: ${{ images.label_studio.ref }}
+    name: ${{ flow.title }}-label-studio
     http_port: 443
     http_auth: True
     life_span: 1d
@@ -312,7 +311,7 @@ jobs:
 
   mlflow_postgres:
     image: postgres:12.5
-    name: $[[ flow.title ]]-postgres
+    name: ${{ flow.title }}-postgres
     http_port: 5432
     http_auth: False
     life_span: 30d
@@ -326,11 +325,12 @@ jobs:
 
   mlflow_server:
     image: neuromation/mlflow:1.11.0
-    name: $[[ flow.title ]]-mlflow-server
+    name: ${{ flow.title }}-mlflow-server
     http_port: 5000
     http_auth: False  # sic
     life_span: 30d
     detach: True
+    browse: True
     volumes:
       - ${{ volumes.mlflow_artifacts.ref_rw }}
     cmd: |
@@ -339,15 +339,66 @@ jobs:
         --default-artifact-root=${{ volumes.mlflow_artifacts.mount }}
 
 
+  jupyter:
+    image: ${{ images.train.ref }}
+    name: ${{ flow.title }}-jupyter
+    preset: cpu-small
+    browse: True
+    http_port: 8080
+    volumes:
+      - ${{ volumes.dvc_cache.ref_rw }}
+      - ${{ volumes.mlflow_artifacts.ref_rw }}
+      - secret:gh-rsa:/root/.ssh/id-rsa
+    workdir: /project
+    env:
+      # EXPOSE_SSH: "yes"
+      # MLFLOW_TRACKING_URI: "http://${{ inspect_job('mlflow_server').internal_hostname_named }}:5000"
+      PYTHONPATH: /project
+      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
+    params:
+      git_branch:
+        # ... --param git_branch ${EXPERIMENT_BRANCH}
+        descr: "Git reference where to CHECKOUT the code and data from"
+        default: master
+      jupyter_mode: 
+        descr: "Default mode, in which to launch Jupyter, either 'notebook' or 'lab'"
+        default: notebook
+    bash: |
+      set -o xtrace
+
+      GIT_BRANCH=${{ params.git_branch }}
+      DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
+
+      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
+      ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git clone ${GIT_REPO} ${PYTHONPATH}
+      cd ${PYTHONPATH}
+      git checkout ${GIT_BRANCH}
+
+      # echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
+      # dvc init -q -f
+      # dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
+      # dvc pull -f
+
+      jupyter ${{ params.jupyter_mode }} \
+        --no-browser \
+        --ip=0.0.0.0 \
+        --port=8080 \
+        --allow-root \
+        --NotebookApp.token= \
+        --NotebookApp.shutdown_no_activity_timeout=7200 \
+        --MappingKernelManager.cull_idle_timeout=7200 \
+        --notebook-dir=${PYTHONPATH}/notebooks
+
   train:
-    image: $[[ images.train.ref ]]
+    image: ${{ images.train.ref }}
     preset: gpu-k80-small-p
     detach: False
     life_span: 10d
     volumes:
-      - $[[ volumes.dvc_cache.ref_ro ]]
-      - $[[ volumes.mlflow_artifacts.ref_rw ]]
-      - $[[ volumes.remote_dataset.ref_ro ]]
+      - ${{ volumes.dvc_cache.ref_ro }}
+      - ${{ volumes.mlflow_artifacts.ref_rw }}
       - secret:gh-rsa:/root/.ssh/id-rsa
     workdir: /project
     env:
@@ -361,14 +412,12 @@ jobs:
         # ... --param git_branch ${EXPERIMENT_BRANCH}
         descr: "Git reference where to CHECKOUT the code and data from"
     bash: |
-      pip install mlflow -q
       set -o xtrace
 
       GIT_BRANCH=${{ params.git_branch }}
       GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
       GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
       DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
-      REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
 
       echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
@@ -388,12 +437,11 @@ jobs:
       python -u src/train.py \
         --data_dir=${PROJECT}/data/images \
         --annotation_csv=${PROJECT}/data/annotations.csv \
-        --n_epoch=10 \
       || sleep infinity
 
   deploy_inference_platform:
-    image: $[[ images.seldon.ref ]]
-    name: $[[ flow.title ]]-test-inference
+    image: ${{ images.inference.ref }}
+    name: ${{ flow.title }}-test-inference
     preset: cpu-small
     http_port: 5000
     http_auth: False
@@ -409,41 +457,41 @@ jobs:
 
   locust:
     image: locustio/locust:1.4.1
-    name: $[[ flow.title ]]-locust
+    name: ${{ flow.title }}-locust
     http_port: 8080
     http_auth: False
     life_span: 1d
     detach: True
     browse: True
     volumes:
-      - $[[ upload(volumes.src).ref_ro ]]
-      - $[[ volumes.remote_dataset.ref_ro ]]
+      - ${{ upload(volumes.src).ref_ro }}
+      - ${{ volumes.remote_dataset.ref_ro }}
     env:
-      DATA_DIR: $[[ volumes.remote_dataset.mount ]]/bone-age-tiny/
-      PYTHONPATH: $[[ volumes.src.mount ]]/..
+      DATA_DIR: ${{ volumes.remote_dataset.mount }}/bone-age-tiny/
+      PYTHONPATH: ${{ volumes.src.mount }}/..
     # Job URI: https://ml-recipe-bone-age-test-inference--yevheniisemendiak.jobs.neuro-compute.org.neu.ro/predict
     # Seldon URI: https://seldon.onprem-poc.org.neu.ro/seldon/seldon/my-model/api/v1.0/predictions
     cmd: |
-      -f $[[ volumes.src.mount ]]/locust.py --users 1 --spawn-rate 1 --web-port 8080
+      -f ${{ volumes.src.mount }}/locust.py --users 1 --spawn-rate 1 --web-port 8080
 
 
   filebrowser:
     action: gh:neuro-actions/filebrowser@master
     args:
-      volumes_project_remote: $[[ volumes.project.remote ]]
+      volumes_project_remote: ${{ volumes.project.remote }}
 
 
   webdav_dvc:
     action: gh:neuro-actions/webdav_server@master
     args:
-      volume_remote: $[[ volumes.dvc_cache.remote ]]
-      job_name: $[[ flow.title ]]-webdav-dvc
+      volume_remote: ${{ volumes.dvc_cache.remote }}
+      job_name: ${{ flow.title }}-webdav-dvc
       http_auth: ""
 
 
   webdav_mlflow:
     action: gh:neuro-actions/webdav_server@master
     args:
-      volume_remote: $[[ volumes.mlflow_artifacts.remote ]]
-      job_name: $[[ flow.title ]]-webdav-mlflow
+      volume_remote: ${{ volumes.mlflow_artifacts.remote }}
+      job_name: ${{ flow.title }}-webdav-mlflow
       http_auth: ""

@@ -22,7 +22,7 @@ volumes:
     mount: /ml-recipe-bone-age
     local: .
   postgres_storage:
-    remote: disk:disk-ca2c7339-07b4-4040-a743-cf18a9308c54
+    remote: disk:ml-recipe-bone-age-postgres
     mount: /var/lib/postgresql/data
   mlflow_artifacts:
     remote: storage:${{ flow.project_id }}/mlruns

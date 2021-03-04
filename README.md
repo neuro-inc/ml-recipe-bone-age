@@ -155,11 +155,17 @@ When the time comes to model training we should be sure that no single piece of 
 1. __MLflow server__
 
     The MLFlow server, in turn, requires an access to the database, where metrics of all executed experiments are be persisted.
-    Thus, we first start the backend database (PostgresDB) for MLFlow and MLFlow itself.
+
+    Therefore, we first create a neu.ro disk for storing the backend database (PostgresDB) data persistantly and start the database itself.
 
     ```shell
-    neuro-flow run mlflow_postgres
-    neuro-flow run mlflow_server
+        neuro disk create --timeout-unused 60d 5Gb --name ml-recipe-bone-age-postgres
+        neuro-flow run mlflow_postgres
+    ```
+
+    Afterwards, we start MLFlow server itself.
+    ```shell
+        neuro-flow run mlflow_server
     ```
     Those jobs could be left in the background for consequent runs and there is no need to re-run them on each iteration.
     As a backend for artifact store in MLFlow we use platform storage, whose volumes will be mounted into the MLFlow job itself and into the training job.

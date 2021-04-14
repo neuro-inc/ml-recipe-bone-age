@@ -35,16 +35,16 @@ volumes:
 
 images:
   train:
-    ref: image:${{ flow.project_id }}:v2
+    ref: image:${{ flow.project_id }}:v3
     dockerfile: ${{ flow.workspace }}/docker/train.dockerfile
     context: ${{ flow.workspace }}/
-    build_preset: gpu-k80-small-p
+    build_preset: gpu-small-p
   cpu_worker:
     ref: image:${{ flow.project_id }}/cpu_worker:v1
     dockerfile: ${{ flow.workspace }}/docker/cpu-worker.dockerfile
     context: ${{ flow.workspace }}/
   inference:
-    ref: image:${{ flow.project_id }}/inference:21.1.23
+    ref: image:${{ flow.project_id }}/inference:21.4.13
     dockerfile: ${{ flow.workspace }}/seldon_deployment/seldon.Dockerfile
     context: ${{ flow.workspace }}/
     build_preset: cpu-large
@@ -442,8 +442,8 @@ jobs:
   deploy_inference_platform:
     image: ${{ images.inference.ref }}
     name: ${{ flow.title }}-test-inference
-    preset: cpu-small
-    http_port: 5000
+    preset: gpu-k80-small-p
+    http_port: 9000
     http_auth: False
     life_span: 5h
     detach: True
@@ -469,7 +469,7 @@ jobs:
     env:
       DATA_DIR: ${{ volumes.remote_dataset.mount }}/bone-age-tiny/
       PYTHONPATH: ${{ volumes.src.mount }}/..
-    # Job URI: https://ml-recipe-bone-age-test-inference--yevheniisemendiak.jobs.neuro-compute.org.neu.ro/predict
+    # Job URI: https://ml-recipe-bone-age-test-inference--yevheniisemendiak.jobs.neuro-compute.org.neu.ro/api/v1.0/predictions
     # Seldon URI: https://seldon.onprem-poc.org.neu.ro/seldon/seldon/my-model/api/v1.0/predictions
     cmd: |
       -f ${{ volumes.src.mount }}/locust.py --users 1 --spawn-rate 1 --web-port 8080

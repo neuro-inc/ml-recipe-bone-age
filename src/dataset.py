@@ -72,7 +72,7 @@ class BoneAgeDataset(VisionDataset):
                 on a sample.
             model_type (string): target to predict, can be either boneage or gender
         """
-        super(BoneAgeDataset, self).__init__(Path(root), transform=transform,
+        super().__init__(root=Path(root), transform=transform,
                                              target_transform=target_transform)
         bone_age_frame['id'] = bone_age_frame['id'].astype(int)
         self.bone_age_frame = bone_age_frame#.loc[bone_age_frame['id']]

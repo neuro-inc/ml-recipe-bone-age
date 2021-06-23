@@ -341,15 +341,15 @@ jobs:
     preset: cpu-small
     browse: True
     http_port: 8080
+    http_auth: False
     volumes:
       - ${{ volumes.dvc_cache.ref_rw }}
       - ${{ volumes.mlflow_artifacts.ref_rw }}
+      - ${{ upload(volumes.src).ref }}
       - secret:gh-rsa:/root/.ssh/id-rsa
-    workdir: /project
+    workdir: /${{ flow.project_id }}
     env:
-      # EXPOSE_SSH: "yes"
-      # MLFLOW_TRACKING_URI: "http://${{ inspect_job('mlflow_server').internal_hostname_named }}:5000"
-      PYTHONPATH: /project
+      PYTHONPATH: /${{ flow.project_id }}
       GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
     params:
       git_branch:

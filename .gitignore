@@ -125,6 +125,3 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# data/ folder
-# data/**/*
-wget-log

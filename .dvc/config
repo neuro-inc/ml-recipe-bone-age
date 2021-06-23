@@ -1,0 +1,4 @@
+[core]
+    remote = mounted_cache
+['remote "mounted_cache"']
+    url = ../dvc_cache

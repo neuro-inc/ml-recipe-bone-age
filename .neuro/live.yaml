@@ -17,6 +17,7 @@ volumes:
   dvc_cache:
     remote: storage:${{ flow.project_id }}/dvc_cache
     mount: /ml-recipe-bone-age/dvc_cache
+    local: dvc_cache
   project:
     remote: storage:ml_recipe_bone_age
     mount: /ml-recipe-bone-age
@@ -102,7 +103,6 @@ jobs:
         echo "Dataset ${DATASET_PATH} already exists, skipping."
       fi
 
-
   prepare_git:
     image: ${{ images.cpu_worker.ref }}
     preset: cpu-small
@@ -153,7 +153,6 @@ jobs:
       echo "Pushing new branch ${CREATE_GIT_BRANCH}"
       git commit --allow-empty -m 'empty commit'
       git push --set-upstream origin ${CREATE_GIT_BRANCH}
-
 
   extend_data:
     image: ${{ images.cpu_worker.ref }}
@@ -213,7 +212,7 @@ jobs:
         [ -f "$dvc_path" ] && dvc commit --force $dvc_path || dvc add $path --file $dvc_path
         git add $dvc_path
       done
-      echo "Pushind data to remote dvc cache"
+      echo "Pushing data to remote dvc cache"
       time dvc push
 
       echo "Committing changes to git"
@@ -221,12 +220,11 @@ jobs:
         -m "Auto-commit: update dataset: add ${EXTEND_DATASET_BY} images"
       git push --set-upstream origin ${GIT_BRANCH}
 
-
   label_studio:
     image: ${{ images.label_studio.ref }}
     name: ${{ flow.title }}-label-studio
     http_port: 443
-    http_auth: True
+    http_auth: False
     life_span: 1d
     detach: False
     browse: True
@@ -308,7 +306,6 @@ jobs:
         -m "Auto-commit: annotate dataset: annotate ${N_IMAGES} images"
       git push --set-upstream origin ${GIT_BRANCH}
 
-
   mlflow_postgres:
     image: postgres:12.5
     name: ${{ flow.title }}-postgres
@@ -337,7 +334,6 @@ jobs:
       server --host 0.0.0.0
         --backend-store-uri=postgresql://postgres:password@${{ inspect_job('mlflow_postgres').name }}--${{ inspect_job('mlflow_postgres').owner }}.platform-jobs:5432
         --default-artifact-root=${{ volumes.mlflow_artifacts.mount }}
-
 
   jupyter:
     image: ${{ images.train.ref }}
@@ -393,51 +389,24 @@ jobs:
 
   train:
     image: ${{ images.train.ref }}
-    preset: gpu-k80-small-p
+    # preset: gpu-k80-small-p
     detach: False
     life_span: 10d
     volumes:
-      - ${{ volumes.dvc_cache.ref_ro }}
+      - ${{ volumes.data.ref }}
+      - ${{ volumes.src.ref }}
       - ${{ volumes.mlflow_artifacts.ref_rw }}
       - secret:gh-rsa:/root/.ssh/id-rsa
-    workdir: /project
+    workdir: /${{ flow.project_id }}
     env:
-      EXPOSE_SSH: "yes"
       MLFLOW_TRACKING_URI: "http://${{ inspect_job('mlflow_server').internal_hostname_named }}:5000"
-      PROJECT: /project
-      PYTHONPATH: /project
-      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
-    params:
-      git_branch:
-        # ... --param git_branch ${EXPERIMENT_BRANCH}
-        descr: "Git reference where to CHECKOUT the code and data from"
+      PYTHONPATH: /${{ flow.project_id }}
     bash: |
-      set -o xtrace
+      echo "Training on $(ls ${{ volumes.data.mount }}/images | wc -l) images"
+      python -u ${{ volumes.src.mount }}/train.py \
+        --data_dir=${{ volumes.data.mount }}/images \
+        --annotation_csv=${{ volumes.data.mount }}/annotations.csv
 
-      GIT_BRANCH=${{ params.git_branch }}
-      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
-      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
-      DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
-
-      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
-      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
-      ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone ${GIT_REPO} ${PROJECT}
-      cd ${PROJECT}
-      git config user.email ${GIT_USER_EMAIL}
-      git config user.name ${GIT_USER_NAME}
-      git checkout ${GIT_BRANCH}
-
-      echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
-      dvc init -q -f
-      dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
-      dvc pull -f
-
-      echo "Training on $(ls ${PROJECT}/data/images | wc -l) images"
-      python -u src/train.py \
-        --data_dir=${PROJECT}/data/images \
-        --annotation_csv=${PROJECT}/data/annotations.csv \
-      || sleep infinity
 
   deploy_inference_platform:
     image: ${{ images.inference.ref }}
@@ -487,7 +456,6 @@ jobs:
       volume_remote: ${{ volumes.dvc_cache.remote }}
       job_name: ${{ flow.title }}-webdav-dvc
       http_auth: ""
-
 
   webdav_mlflow:
     action: gh:neuro-actions/webdav_server@master

@@ -38,7 +38,7 @@ jobs:
     http_port: 8080
     http_auth: False
     volumes:
-      - ${{ volumes.notebooks.ref_rw }}
+      - ${{ upload(volumes.notebooks).ref_rw }}
       - ${{ upload(volumes.src).ref }}
     workdir: /${{ flow.project_id }}
     env:

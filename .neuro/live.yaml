@@ -9,19 +9,23 @@ defaults:
 volumes:
   data:
     remote: storage:${{ flow.project_id }}/data
-    mount: /ml-recipe-bone-age/data
+    mount: /${{ flow.project_id }}/data
     local: data
   remote_dataset:
     remote: storage:${{ flow.project_id }}/dataset
-    mount: /ml-recipe-bone-age/dataset
+    mount: /${{ flow.project_id }}/dataset
   dvc_cache:
     remote: storage:${{ flow.project_id }}/dvc_cache
-    mount: /ml-recipe-bone-age/dvc_cache
+    mount: /${{ flow.project_id }}/dvc_cache
     local: dvc_cache
   project:
     remote: storage:ml_recipe_bone_age
-    mount: /ml-recipe-bone-age
+    mount: /${{ flow.project_id }}
     local: .
+  notebooks:
+    remote: storage:ml_recipe_bone_age/notebooks
+    mount: /${{ flow.project_id }}/notebooks
+    local: notebooks
   postgres_storage:
     remote: disk:ml-recipe-bone-age-postgres
     mount: /var/lib/postgresql/data
@@ -30,7 +34,7 @@ volumes:
     mount: /usr/local/share/mlruns
   src:
     remote: storage:${{ flow.project_id }}/src
-    mount: /ml-recipe-bone-age/src
+    mount: /${{ flow.project_id }}/src
     local: src
 
 
@@ -345,39 +349,14 @@ jobs:
     volumes:
       - ${{ volumes.dvc_cache.ref_rw }}
       - ${{ volumes.mlflow_artifacts.ref_rw }}
+      - ${{ volumes.notebooks.ref_rw }}
       - ${{ upload(volumes.src).ref }}
       - secret:gh-rsa:/root/.ssh/id-rsa
     workdir: /${{ flow.project_id }}
     env:
       PYTHONPATH: /${{ flow.project_id }}
-      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
-    params:
-      git_branch:
-        # ... --param git_branch ${EXPERIMENT_BRANCH}
-        descr: "Git reference where to CHECKOUT the code and data from"
-        default: master
-      jupyter_mode: 
-        descr: "Default mode, in which to launch Jupyter, either 'notebook' or 'lab'"
-        default: notebook
     bash: |
-      set -o xtrace
-
-      GIT_BRANCH=${{ params.git_branch }}
-      DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
-
-      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
-      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
-      ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone ${GIT_REPO} ${PYTHONPATH}
-      cd ${PYTHONPATH}
-      git checkout ${GIT_BRANCH}
-
-      # echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
-      # dvc init -q -f
-      # dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
-      # dvc pull -f
-
-      jupyter ${{ params.jupyter_mode }} \
+      jupyter notebook \
         --no-browser \
         --ip=0.0.0.0 \
         --port=8080 \
@@ -389,7 +368,7 @@ jobs:
 
   train:
     image: ${{ images.train.ref }}
-    # preset: gpu-k80-small-p
+    preset: gpu-k80-small-p
     detach: False
     life_span: 10d
     volumes:

@@ -11,6 +11,9 @@ volumes:
     remote: storage:${{ flow.project_id }}/data
     mount: /${{ flow.project_id }}/data
     local: data
+  dataset:
+    remote: storage:${{ flow.project_id }}/dataset
+    mount: /${{ flow.project_id }}/dataset
   notebooks:
     remote: storage:ml_recipe_bone_age/notebooks
     mount: /${{ flow.project_id }}/notebooks
@@ -29,17 +32,24 @@ images:
     build_preset: gpu-small-p
 
 jobs:
+  prepare_dataset:
+    image: ${{ images.train.ref }}
+    volumes:
+      - ${{ volumes.dataset.ref }}
+    bash: |
+      wget http://data.neu.ro/bone-age-tiny.zip -O /tmp/bone-age.zip
+      unzip -o /tmp/bone-age.zip -d ${{ volumes.dataset.mount }}
 
   jupyter:
     image: ${{ images.train.ref }}
     name: ${{ flow.title }}-jupyter
-    preset: cpu-small
     browse: True
     http_port: 8080
     http_auth: False
     volumes:
       - ${{ upload(volumes.notebooks).ref_rw }}
       - ${{ upload(volumes.src).ref }}
+      - ${{ volumes.dataset.ref_ro }}
     workdir: /${{ flow.project_id }}
     env:
       PYTHONPATH: /${{ flow.project_id }}

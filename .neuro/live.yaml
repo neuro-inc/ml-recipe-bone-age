@@ -6,10 +6,11 @@ defaults:
   life_span: 1d
   volumes:
     - secret:/yevheniisemendiak/ml-recipe-bone-age--s3-bucket:/root/.aws/credentials
+    - secret:gh-rsa:/root/.ssh/id-rsa
   env:
-    DVC_BUCKET: blob:/${{ project.owner }}/mlops-demo-oss-dogs-dvc
+    DVC_BUCKET_PATH: blob:/yevheniisemendiak/ml-recipe-bone-age/dvc
     GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
-    PROJECT: /project
+    PROJECT_DIR: /project
 
 volumes:
   data:
@@ -40,7 +41,7 @@ volumes:
 
 images:
   train:
-    ref: image:${{ flow.project_id }}:v3
+    ref: image:${{ flow.project_id }}:v4
     dockerfile: ${{ flow.workspace }}/docker/train.dockerfile
     context: ${{ flow.workspace }}/
     build_preset: gpu-small-p
@@ -54,7 +55,7 @@ images:
     context: ${{ flow.workspace }}/
     build_preset: cpu-large
   label_studio:
-    ref: image:${{ flow.project_id }}/label_studio:21.10.12
+    ref: image:${{ flow.project_id }}/label_studio:v3
     dockerfile: ${{ flow.workspace }}/label_studio/label_studio.Dockerfile
     context: ${{ flow.workspace }}/label_studio
 
@@ -108,10 +109,6 @@ jobs:
 
   prepare_git:
     image: ${{ images.cpu_worker.ref }}
-    preset: cpu-small
-    detach: False
-    volumes:
-      - secret:gh-rsa:/root/.ssh/id-rsa
     params:
       # BRANCH=$(git branch --show-current)
       # EXPERIMENT_BRANCH=${BRANCH}-experiment
@@ -131,26 +128,15 @@ jobs:
       GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
       GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
       CREATE_GIT_BRANCH=${{ params.create_git_branch }}
-      CREATE_GIT_BRANCH=${CREATE_GIT_BRANCH:-$GIT_BRANCH-experiment}
 
       echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone ${GIT_REPO} ${PROJECT}
-      cd ${PROJECT}
+      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
+      cd ${PROJECT_DIR}
       git config user.email ${GIT_USER_EMAIL}
       git config user.name ${GIT_USER_NAME}
-      git checkout ${GIT_BRANCH}
 
-      echo "Checking that branch ${CREATE_GIT_BRANCH} does not yet exist"
-      if [ "$(git show-branch remotes/origin/${CREATE_GIT_BRANCH})" ]; then
-        echo "error: remote branch origin/${CREATE_GIT_BRANCH} alrady exists"
-        exit 1
-      fi
-      git checkout -b ${CREATE_GIT_BRANCH}
-
-      echo "Pushing new branch ${CREATE_GIT_BRANCH}"
-      git commit --allow-empty -m 'empty commit'
       git push --set-upstream origin ${CREATE_GIT_BRANCH}
 
 
@@ -158,7 +144,6 @@ jobs:
     image: ${{ images.cpu_worker.ref }}
     volumes:
       - ${{ volumes.remote_dataset.ref_rw }}
-      - secret:gh-rsa:/root/.ssh/id-rsa
     params:
       extend_dataset_by:
         default: "50"
@@ -184,8 +169,8 @@ jobs:
       git config user.email ${GIT_USER_EMAIL}
       git config user.name ${GIT_USER_NAME}
 
-      echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
-      dvc pull -f
+      echo "Pulling data from dvc cache"
+      dvc pull
 
       echo "Extending dataset"
       python ${PROJECT}/data_utils/extend_dataset.py \
@@ -212,49 +197,36 @@ jobs:
 
   label_studio:
     image: ${{ images.label_studio.ref }}
-    name: ${{ flow.title }}-label-studio
     http_port: 443
     http_auth: True
-    life_span: 1d
-    detach: False
     browse: True
     volumes:
-      - ${{ volumes.dvc_cache.ref_rw }}
       - ${{ volumes.remote_dataset.ref_rw }}
-      - secret:gh-rsa:/root/.ssh/id-rsa
     params:
       extend_dataset_by: "5"
       git_branch:
         # BRANCH=$(git branch --show-current)
         # ... --param git_branch ${EXPERIMENT_BRANCH}
         descr: "Git reference where to CHECKOUT the code and data from"
-    env:
-      PROJECT_DIR: /project
-      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
     bash: |
       set -o xtrace
 
       GIT_BRANCH=${{ params.git_branch }}
       GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
       GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
-      DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
       REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
       EXTEND_DATASET_BY=${{ params.extend_dataset_by }}
 
       echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone ${GIT_REPO} ${PROJECT_DIR}
+      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
       cd ${PROJECT_DIR}
       git config user.email ${GIT_USER_EMAIL}
       git config user.name ${GIT_USER_NAME}
-      git checkout ${GIT_BRANCH}
 
-      echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
-      dvc init -q -f
-      dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
-      dvc pull -f
-
+      echo "Pulling data from dvc cache"
+      dvc pull
 
       echo "Extending dataset"
       python3 ${PROJECT_DIR}/data_utils/extend_dataset.py \
@@ -364,14 +336,11 @@ jobs:
     volumes:
       - ${{ volumes.dvc_cache.ref_ro }}
       - ${{ volumes.mlflow_artifacts.ref_rw }}
-      - secret:gh-rsa:/root/.ssh/id-rsa
     workdir: /project
     env:
       EXPOSE_SSH: "yes"
       MLFLOW_TRACKING_URI: "http://${{ inspect_job('mlflow_server').internal_hostname_named }}:5000"
-      PROJECT: /project
       PYTHONPATH: /project
-      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
     params:
       git_branch:
         # ... --param git_branch ${EXPERIMENT_BRANCH}
@@ -387,21 +356,14 @@ jobs:
       echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone ${GIT_REPO} ${PROJECT}
-      cd ${PROJECT}
-      git config user.email ${GIT_USER_EMAIL}
-      git config user.name ${GIT_USER_NAME}
-      git checkout ${GIT_BRANCH}
+      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
+      cd ${PROJECT_DIR}
+      dvc pull
 
-      echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
-      dvc init -q -f
-      dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
-      dvc pull -f
-
-      echo "Training on $(ls ${PROJECT}/data/images | wc -l) images"
+      echo "Training on $(ls ${PROJECT_DIR}/data/images | wc -l) images"
       python -u src/train.py \
-        --data_dir=${PROJECT}/data/images \
-        --annotation_csv=${PROJECT}/data/annotations.csv \
+        --data_dir=${PROJECT_DIR}/data/images \
+        --annotation_csv=${PROJECT_DIR}/data/annotations.csv \
       || sleep infinity
 
   deploy_inference_platform:
@@ -433,7 +395,7 @@ jobs:
     env:
       DATA_DIR: ${{ volumes.remote_dataset.mount }}/bone-age-tiny/
       PYTHONPATH: ${{ volumes.src.mount }}/..
-    # Job URI: https://ml-recipe-bone-age-test-inference--yevheniisemendiak.jobs.neuro-compute.org.neu.ro/api/v1.0/predictions
+    # Job URI: https://ml-recipe-bone-age-test-inference--yevheniisemendiak.jobs.default.org.neu.ro/api/v1.0/predictions
     # Seldon URI: https://seldon.onprem-poc.org.neu.ro/seldon/seldon/my-model/api/v1.0/predictions
     cmd: |
       -f ${{ volumes.src.mount }}/locust.py --users 1 --spawn-rate 1 --web-port 8080
@@ -450,12 +412,4 @@ jobs:
     args:
       volume_remote: ${{ volumes.dvc_cache.remote }}
       job_name: ${{ flow.title }}-webdav-dvc
-      http_auth: ""
-
-
-  webdav_mlflow:
-    action: gh:neuro-actions/webdav_server@master
-    args:
-      volume_remote: ${{ volumes.mlflow_artifacts.remote }}
-      job_name: ${{ flow.title }}-webdav-mlflow
       http_auth: ""

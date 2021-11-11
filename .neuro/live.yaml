@@ -20,16 +20,10 @@ volumes:
   remote_dataset:
     remote: storage:${{ flow.project_id }}/dataset
     mount: /ml-recipe-bone-age/dataset
-  dvc_cache:
-    remote: storage:${{ flow.project_id }}/dvc_cache
-    mount: /ml-recipe-bone-age/dvc_cache
   project:
     remote: storage:ml_recipe_bone_age
     mount: /ml-recipe-bone-age
     local: .
-  postgres_storage:
-    remote: disk:ml-recipe-bone-age-postgres
-    mount: /var/lib/postgresql/data
   mlflow_artifacts:
     remote: storage:${{ flow.project_id }}/mlruns
     mount: /usr/local/share/mlruns
@@ -41,7 +35,7 @@ volumes:
 
 images:
   train:
-    ref: image:${{ flow.project_id }}:v4
+    ref: image:${{ flow.project_id }}:v5
     dockerfile: ${{ flow.workspace }}/docker/train.dockerfile
     context: ${{ flow.workspace }}/
     build_preset: gpu-small-p
@@ -283,15 +277,12 @@ jobs:
     browse: True
     http_port: 8080
     volumes:
-      - ${{ volumes.dvc_cache.ref_rw }}
       - ${{ volumes.mlflow_artifacts.ref_rw }}
-      - secret:gh-rsa:/root/.ssh/id-rsa
     workdir: /project
     env:
       # EXPOSE_SSH: "yes"
       # MLFLOW_TRACKING_URI: "http://${{ inspect_job('mlflow_server').internal_hostname_named }}:5000"
       PYTHONPATH: /project
-      GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
     params:
       git_branch:
         # ... --param git_branch ${EXPERIMENT_BRANCH}
@@ -303,20 +294,13 @@ jobs:
     bash: |
       set -o xtrace
 
-      GIT_BRANCH=${{ params.git_branch }}
-      DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
-
-      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "Cloning git repo to the state of branch ${{ params.git_branch }}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone ${GIT_REPO} ${PYTHONPATH}
+      git clone -b ${{ params.git_branch }} ${GIT_REPO} ${PYTHONPATH}
       cd ${PYTHONPATH}
-      git checkout ${GIT_BRANCH}
 
-      # echo "Pulling data from dvc cache ${DVC_CACHE_PATH}"
-      # dvc init -q -f
-      # dvc remote add -d mounted_cache ${DVC_CACHE_PATH}
-      # dvc pull -f
+      # dvc pull
 
       jupyter ${{ params.jupyter_mode }} \
         --no-browser \
@@ -334,7 +318,6 @@ jobs:
     detach: False
     life_span: 10d
     volumes:
-      - ${{ volumes.dvc_cache.ref_ro }}
       - ${{ volumes.mlflow_artifacts.ref_rw }}
     workdir: /project
     env:
@@ -348,15 +331,10 @@ jobs:
     bash: |
       set -o xtrace
 
-      GIT_BRANCH=${{ params.git_branch }}
-      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
-      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
-      DVC_CACHE_PATH=${{ volumes.dvc_cache.mount }}
-
-      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "Cloning git repo to the state of branch ${{ params.git_branch }}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
+      git clone -b ${{ params.git_branch }} ${GIT_REPO} ${PROJECT_DIR}
       cd ${PROJECT_DIR}
       dvc pull
 
@@ -405,11 +383,3 @@ jobs:
     action: gh:neuro-actions/filebrowser@master
     args:
       volumes_project_remote: ${{ volumes.project.remote }}
-
-
-  webdav_dvc:
-    action: gh:neuro-actions/webdav_server@master
-    args:
-      volume_remote: ${{ volumes.dvc_cache.remote }}
-      job_name: ${{ flow.title }}-webdav-dvc
-      http_auth: ""

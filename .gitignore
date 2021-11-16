@@ -128,3 +128,6 @@ dmypy.json
 # data/ folder
 # data/**/*
 wget-log
+
+# DVC files
+.dvc/plots

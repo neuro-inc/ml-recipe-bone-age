@@ -1,0 +1,5 @@
+[core]
+    remote = s3
+['remote "s3"']
+    url = s3://neuro-pl-ae967fb38a-yevheniisemendiak-ml-reci1ec9565821ea/dvc
+    region = us-east-1

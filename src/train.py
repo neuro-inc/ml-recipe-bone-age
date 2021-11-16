@@ -1,6 +1,8 @@
+import logging
 import warnings
 from argparse import ArgumentParser, Namespace
 from enum import Enum
+import logging
 warnings.simplefilter('ignore')
 
 from collections import OrderedDict
@@ -15,14 +17,18 @@ import catalyst.dl.callbacks as clb
 from catalyst.dl.runner import SupervisedRunner
 from catalyst.utils import set_global_seed
 
-from model import m46
-from dataset import get_loaders
-from const import LOG_DIR, DATA_PATH, MODELS_DIR
+from src.model import m46, convert_checkpoint
+from src.dataset import get_loaders
+from src.const import LOG_DIR, DATA_PATH, MODELS_DIR
+from src.mlflow_logger import MLFlowLogging
+
+logger = logging.getLogger(__file__)
 
 
 def main(args: Namespace) -> None:
-    input_shape = (1, int(args.crop_size[0] * args.scale), int(args.crop_size[1] * args.scale))
-    print('Input shape', 'x'.join(map(str, input_shape)), '[CxHxW]')
+    c, h, w = 1, int(args.crop_size[0] * args.scale), int(args.crop_size[1] * args.scale)
+    input_shape = (c, h, w)
+    logger.info(f'Input shape: [CxHxW]=[{c}x{h}x{w}]')
 
     set_global_seed(args.seed)
 
@@ -30,6 +36,7 @@ def main(args: Namespace) -> None:
     loaders = OrderedDict([('train', train_loader), ('valid', test_loader)])
 
     model = m46(input_shape=input_shape, model_type=args.model_type)
+
     criterion = model.loss_function
     optimizer = torch.optim.Adam(lr=2e-5, betas=(0.5, 0.999), params=model.parameters())
 
@@ -38,7 +45,24 @@ def main(args: Namespace) -> None:
                               input_target_key='label',
                               device=args.device if is_available() else tdevice('cpu')
                               )
-    callbacks = [clb.CriterionCallback(input_key='label', output_key=output_key)]
+    callbacks = [
+        clb.CriterionCallback(input_key='label', output_key=output_key),
+        MLFlowLogging(
+            extra_params=dict(
+                crop_center=args.crop_center,
+                crop_size=args.crop_size,
+                scale=args.scale,
+                dataset_split=args.dataset_split,
+                model_type=args.model_type,
+                n_epoch=args.n_epoch,
+                batch_size=args.batch_size,
+                n_gpu=args.n_gpu,
+                n_workers=args.n_workers,
+                seed=args.seed,
+                device=args.device.type,
+            )
+        ),
+    ]
     if args.model_type == 'gender':
         callbacks += [clb.AccuracyCallback(prefix='accuracy', input_key='label',
                                            output_key=output_key, accuracy_args=[1],
@@ -85,4 +109,5 @@ def get_parser() -> ArgumentParser:
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     main(args=get_parser().parse_args())

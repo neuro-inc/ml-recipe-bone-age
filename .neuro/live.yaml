@@ -158,8 +158,8 @@ jobs:
       echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
       echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
       ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT}
-      cd ${PROJECT}
+      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
+      cd ${PROJECT_DIR}
       git config user.email ${GIT_USER_EMAIL}
       git config user.name ${GIT_USER_NAME}
 
@@ -167,7 +167,7 @@ jobs:
       dvc pull
 
       echo "Extending dataset"
-      python ${PROJECT}/data_utils/extend_dataset.py \
+      python ${PROJECT_DIR}/data_utils/extend_dataset.py \
         --cur_dataset data \
         --full_dataset ${REMOTE_DATASET_PATH}/bone-age-tiny \
         --nmber_of_imgs ${EXTEND_DATASET_BY}

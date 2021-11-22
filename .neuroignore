@@ -1,4 +1,4 @@
-/.git/
-/.github/
-/.dvc/
-/data/
+*
+!docker
+!src
+!seldon_deployment

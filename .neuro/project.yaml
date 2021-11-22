@@ -1,3 +1,196 @@
 id: ml_recipe_bone_age
 owner: yevheniisemendiak
 role: yevheniisemendiak/projects/ml_recipe_bone_age
+
+
+defaults:
+  preset: cpu-small
+  life_span: 1d
+  volumes:
+    - secret:/yevheniisemendiak/ml-recipe-bone-age--s3-bucket:/root/.aws/credentials
+    - secret:gh-rsa:/root/.ssh/id-rsa
+  env:
+    DVC_BUCKET_PATH: blob:/yevheniisemendiak/ml-recipe-bone-age/dvc
+    GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
+    PROJECT_DIR: /project
+
+
+volumes:
+  remote_dataset:
+    remote: storage:${{ flow.project_id }}/dataset
+    mount: /ml-recipe-bone-age/dataset
+  mlflow_artifacts:
+    remote: storage:${{ flow.project_id }}/mlruns
+    mount: /usr/local/share/mlruns
+  src:
+    remote: storage:${{ flow.project_id }}/src
+    mount: /ml-recipe-bone-age/src
+
+
+images:
+  train:
+    ref: image:${{ flow.project_id }}:v5
+    #dockerfile: ${{ flow.workspace }}/docker/train.dockerfile
+    #context: ${{ flow.workspace }}/
+    #build_preset: gpu-small-p
+  cpu_worker:
+    ref: image:${{ flow.project_id }}/cpu_worker:v2
+    dockerfile: ${{ flow.workspace }}/docker/cpu-worker.dockerfile
+    context: ${{ flow.workspace }}/docker
+  inference:
+    ref: image:${{ flow.project_id }}/inference:21.4.13
+    #dockerfile: ${{ flow.workspace }}/seldon_deployment/seldon.Dockerfile
+    #context: ${{ flow.workspace }}/
+    build_preset: cpu-large
+  label_studio:
+    ref: image:${{ flow.project_id }}/label_studio:v3
+    dockerfile: ${{ flow.workspace }}/label_studio/label_studio.Dockerfile
+    context: ${{ flow.workspace }}/label_studio
+
+
+mixins:
+  prepare_repote_dataset:
+    image: neuromation/neuro-extras:20.12.15
+    volumes:
+      - ${{ volumes.remote_dataset.ref_rw }}
+    env:
+      DATASET_URL: "http://data.neu.ro/bone-age-tiny.zip"
+      FORCE: ''
+    bash: |
+      set -o xtrace
+
+      DATASET_URL=${DATASET_URL}
+      DST=$(basename ${DATASET_URL} .zip)
+      DATASET_BASE_PATH=${{ volumes.remote_dataset.mount }}
+      DATASET_PATH=${DATASET_BASE_PATH}/${DST}
+
+      FORCE=${FORCE}
+
+      if [ -d "${DATASET_PATH}" ] && [ "${FORCE}" ]; then
+        echo "Dataset target directory already exist and force=true, deleting: '${DATASET_PATH}'"
+        rm -r ${DATASET_PATH}
+      fi
+
+      if [ ! -d "${DATASET_PATH}" ]; then
+        echo "Downloading dataset ${DATASET_URL} -> ${DATASET_PATH}"
+        neuro-extras data cp --extract --use-temp-dir ${DATASET_URL} ${DATASET_PATH}
+
+        echo "Cleaning up dataset {DATASET_PATH}"
+        cd ${DATASET_PATH}
+        mv data/test/*.png data/train
+        rmdir data/test
+        sed -n '1d;p' data/test.csv >> data/train.csv
+        rm data/test.csv
+        mv data/train/ images/
+        mv data/train.csv annotations.csv
+        rmdir data
+      else
+        echo "Dataset ${DATASET_PATH} already exists, skipping."
+      fi
+
+
+  prepare_git:
+    image: ${{ images.cpu_worker.ref }}
+    workdir: /project
+    env:
+      GIT_BRANCH: ""
+      CREATE_GIT_BRANCH: ""
+    bash: |
+      set -o xtrace
+
+      GIT_BRANCH=${GIT_BRANCH}
+      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
+      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
+      CREATE_GIT_BRANCH=${CREATE_GIT_BRANCH}
+
+      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
+      ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
+      cd ${PROJECT_DIR}
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
+
+      echo "Checking that branch ${CREATE_GIT_BRANCH} does not yet exist"
+      if [ "$(git show-branch remotes/origin/${CREATE_GIT_BRANCH})" ]; then
+        echo "::set-output name=result::remote branch origin/${CREATE_GIT_BRANCH} alrady exists"
+      else
+        git checkout -b ${CREATE_GIT_BRANCH}
+        git push --set-upstream origin ${CREATE_GIT_BRANCH}
+        echo "::set-output name=result::created branch origin/${CREATE_GIT_BRANCH}"
+      fi
+
+  extend_data:
+    image: ${{ images.cpu_worker.ref }}
+    workdir: /project
+    volumes:
+      - ${{ volumes.remote_dataset.ref_rw }}
+    env:
+      GIT_BRANCH: ""
+      EXTEND_DATASET_BY: ""
+    bash: |
+      set -o xtrace
+
+      GIT_BRANCH=${GIT_BRANCH}
+      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
+      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
+      REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
+      EXTEND_DATASET_BY=${EXTEND_DATASET_BY}
+
+      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
+      ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
+      cd ${PROJECT_DIR}
+      git config user.email ${GIT_USER_EMAIL}
+      git config user.name ${GIT_USER_NAME}
+
+      echo "Pulling data from dvc cache"
+      dvc pull
+
+      echo "Extending dataset"
+      python ${PROJECT_DIR}/data_utils/extend_dataset.py \
+        --cur_dataset data \
+        --full_dataset ${REMOTE_DATASET_PATH}/bone-age-tiny \
+        --nmber_of_imgs ${EXTEND_DATASET_BY}
+
+      echo "Commiting data changes to dvc"
+      dvc status
+      for path in data/annotations.csv data/images; do
+        dvc_path=${path}.dvc
+        [ -f "$dvc_path" ] && dvc commit --force $dvc_path || dvc add $path --file $dvc_path
+        git add $dvc_path
+      done
+      echo "Pushind data to remote dvc cache"
+      time dvc push
+
+      echo "Committing changes to git"
+      git commit --allow-empty \
+        -m "Auto-commit: update dataset: add ${EXTEND_DATASET_BY} images"
+      git push --set-upstream origin ${GIT_BRANCH}
+
+  train:
+    image: ${{ images.train.ref }}
+    volumes:
+      - ${{ volumes.mlflow_artifacts.ref_rw }}
+    env:
+      EXPOSE_SSH: "yes"
+      PYTHONPATH: /project
+      MLFLOW_TRACKING_URI: ""
+      GIT_BRANCH: ""
+    workdir: /project
+    bash: |
+      set -o xtrace
+
+      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
+      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
+      ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
+      cd ${PROJECT_DIR}
+      dvc pull
+
+      echo "Training on $(ls ${PROJECT_DIR}/data/images | wc -l) images"
+      python -u src/train.py \
+        --data_dir=${PROJECT_DIR}/data/images \
+        --annotation_csv=${PROJECT_DIR}/data/annotations.csv \
+      || sleep infinity

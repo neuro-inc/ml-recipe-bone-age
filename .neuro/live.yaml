@@ -1,22 +1,8 @@
 kind: live
 title: ml-recipe-bone-age
 
-defaults:
-  preset: cpu-small
-  life_span: 1d
-  volumes:
-    - secret:/yevheniisemendiak/ml-recipe-bone-age--s3-bucket:/root/.aws/credentials
-    - secret:gh-rsa:/root/.ssh/id-rsa
-  env:
-    DVC_BUCKET_PATH: blob:/yevheniisemendiak/ml-recipe-bone-age/dvc
-    GIT_REPO: git@github.com:neuro-inc/ml-recipe-bone-age.git
-    PROJECT_DIR: /project
 
 volumes:
-  data:
-    remote: storage:${{ flow.project_id }}/data
-    mount: /ml-recipe-bone-age/data
-    local: data
   remote_dataset:
     remote: storage:${{ flow.project_id }}/dataset
     mount: /ml-recipe-bone-age/dataset
@@ -33,32 +19,13 @@ volumes:
     local: src
 
 
-images:
-  train:
-    ref: image:${{ flow.project_id }}:v5
-    dockerfile: ${{ flow.workspace }}/docker/train.dockerfile
-    context: ${{ flow.workspace }}/
-    build_preset: gpu-small-p
-  cpu_worker:
-    ref: image:${{ flow.project_id }}/cpu_worker:v2
-    dockerfile: ${{ flow.workspace }}/docker/cpu-worker.dockerfile
-    context: ${{ flow.workspace }}/
-  inference:
-    ref: image:${{ flow.project_id }}/inference:21.4.13
-    dockerfile: ${{ flow.workspace }}/seldon_deployment/seldon.Dockerfile
-    context: ${{ flow.workspace }}/
-    build_preset: cpu-large
-  label_studio:
-    ref: image:${{ flow.project_id }}/label_studio:v3
-    dockerfile: ${{ flow.workspace }}/label_studio/label_studio.Dockerfile
-    context: ${{ flow.workspace }}/label_studio
-
 jobs:
 
   prepare_remote_dataset:
-    image: neuromation/neuro-extras:20.12.15
-    volumes:
-      - ${{ volumes.remote_dataset.ref_rw }}
+    mixins: [ prepare_repote_dataset ]
+    env:
+      DATASET_URL: ${{ params.dataset_url }}
+      FORCE: ${{ params.force }}
     params:
       dataset_url:
         default: http://data.neu.ro/bone-age-tiny.zip
@@ -68,76 +35,31 @@ jobs:
         descr: |
           If set to any valie and dataset directory already exists,
           delete existing directory and re-download dataset.
-    bash: |
-      set -o xtrace
-
-      DATASET_URL=${{ params.dataset_url }}
-      DST=$(basename ${DATASET_URL} .zip)
-      DATASET_BASE_PATH=${{ volumes.remote_dataset.mount }}
-      DATASET_PATH=${DATASET_BASE_PATH}/${DST}
-
-      FORCE=${{ params.force }}
-
-      if [ -d "${DATASET_PATH}" ] && [ "${FORCE}" ]; then
-        echo "Dataset target directory already exist and force=true, deleting: '${DATASET_PATH}'"
-        rm -r ${DATASET_PATH}
-      fi
-
-      if [ ! -d "${DATASET_PATH}" ]; then
-        echo "Downloading dataset ${DATASET_URL} -> ${DATASET_PATH}"
-        neuro-extras data cp --extract --use-temp-dir ${DATASET_URL} ${DATASET_PATH}
-
-        echo "Cleaning up dataset {DATASET_PATH}"
-        cd ${DATASET_PATH}
-        mv data/test/*.png data/train
-        rmdir data/test
-        sed -n '1d;p' data/test.csv >> data/train.csv
-        rm data/test.csv
-        mv data/train/ images/
-        mv data/train.csv annotations.csv
-        rmdir data
-      else
-        echo "Dataset ${DATASET_PATH} already exists, skipping."
-      fi
-
 
   prepare_git:
-    image: ${{ images.cpu_worker.ref }}
+    mixins: [ prepare_git ]
+    env:
+      EXTEND_DATASET_BY: ${{ params.extend_dataset_by }}
+      GIT_BRANCH: ${{ params.tgt_git_branch }}
     params:
       # BRANCH=$(git branch --show-current)
       # EXPERIMENT_BRANCH=${BRANCH}-experiment
       git_branch:
         # ... --param git_branch ${BRANCH}
+        default: ${{ git.branch }}
         descr: "Git reference where to CHECKOUT the code and data from"
       create_git_branch:
         #  --param create_git_branch ${EXPERIMENT_BRANCH}
+        default: ${{ git.branch }}-experiment
         descr: |
           Git reference where to COMMIT the new data to.
           By default equals to GIT_BRANCH-experiment.
-    workdir: /project
-    bash: |
-      set -o xtrace
-
-      GIT_BRANCH=${{ params.git_branch }}
-      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
-      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
-      CREATE_GIT_BRANCH=${{ params.create_git_branch }}
-
-      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
-      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
-      ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
-      cd ${PROJECT_DIR}
-      git config user.email ${GIT_USER_EMAIL}
-      git config user.name ${GIT_USER_NAME}
-
-      git push --set-upstream origin ${CREATE_GIT_BRANCH}
-
 
   extend_data:
-    image: ${{ images.cpu_worker.ref }}
-    volumes:
-      - ${{ volumes.remote_dataset.ref_rw }}
+    mixins: [ extend_data ]
+    env:
+      EXTEND_DATASET_BY: ${{ params.extend_dataset_by }}
+      GIT_BRANCH: ${{ params.git_branch }}
     params:
       extend_dataset_by:
         default: "50"
@@ -145,49 +67,7 @@ jobs:
       git_branch:
         # ... --param git_branch ${EXPERIMENT_BRANCH}
         descr: "Git reference where to CHECKOUT the code and data from"
-    workdir: /project
-    bash: |
-      set -o xtrace
-
-      GIT_BRANCH=${{ params.git_branch }}
-      GIT_USER_EMAIL="${NEURO_JOB_ID}.${NEURO_JOB_CLUSTER}@neu.ro"
-      GIT_USER_NAME="bot-${NEURO_JOB_OWNER}"
-      REMOTE_DATASET_PATH=${{ volumes.remote_dataset.mount }}
-      EXTEND_DATASET_BY=${{ params.extend_dataset_by }}
-
-      echo "Cloning git repo to the state of branch ${GIT_BRANCH}"
-      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
-      ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone -b ${GIT_BRANCH} ${GIT_REPO} ${PROJECT_DIR}
-      cd ${PROJECT_DIR}
-      git config user.email ${GIT_USER_EMAIL}
-      git config user.name ${GIT_USER_NAME}
-
-      echo "Pulling data from dvc cache"
-      dvc pull
-
-      echo "Extending dataset"
-      python ${PROJECT_DIR}/data_utils/extend_dataset.py \
-        --cur_dataset data \
-        --full_dataset ${REMOTE_DATASET_PATH}/bone-age-tiny \
-        --nmber_of_imgs ${EXTEND_DATASET_BY}
-
-
-      echo "Commiting data changes to dvc"
-      dvc status
-      for path in data/annotations.csv data/images; do
-        dvc_path=${path}.dvc
-        [ -f "$dvc_path" ] && dvc commit --force $dvc_path || dvc add $path --file $dvc_path
-        git add $dvc_path
-      done
-      echo "Pushind data to remote dvc cache"
-      time dvc push
-
-      echo "Committing changes to git"
-      git commit --allow-empty \
-        -m "Auto-commit: update dataset: add ${EXTEND_DATASET_BY} images"
-      git push --set-upstream origin ${GIT_BRANCH}
-
+        default: ${{ git.branch }}-experiment
 
   label_studio:
     image: ${{ images.label_studio.ref }}
@@ -199,9 +79,9 @@ jobs:
     params:
       extend_dataset_by: "5"
       git_branch:
-        # BRANCH=$(git branch --show-current)
         # ... --param git_branch ${EXPERIMENT_BRANCH}
         descr: "Git reference where to CHECKOUT the code and data from"
+        default: ${{ git.branch }}-experiment
     bash: |
       set -o xtrace
 
@@ -313,36 +193,14 @@ jobs:
         --notebook-dir=${PYTHONPATH}/notebooks
 
   train:
-    image: ${{ images.train.ref }}
-    preset: gpu-k80-small-p
-    detach: False
-    life_span: 10d
-    volumes:
-      - ${{ volumes.mlflow_artifacts.ref_rw }}
-    workdir: /project
+    mixins: [ train ]
     env:
-      EXPOSE_SSH: "yes"
-      MLFLOW_TRACKING_URI: "http://${{ inspect_job('mlflow_server').internal_hostname_named }}:5000"
-      PYTHONPATH: /project
+      GIT_BRANCH: ${{ params.git_branch }}
     params:
       git_branch:
         # ... --param git_branch ${EXPERIMENT_BRANCH}
         descr: "Git reference where to CHECKOUT the code and data from"
-    bash: |
-      set -o xtrace
-
-      echo "Cloning git repo to the state of branch ${{ params.git_branch }}"
-      echo "IdentityFile ~/.ssh/id-rsa" > ~/.ssh/config
-      ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone -b ${{ params.git_branch }} ${GIT_REPO} ${PROJECT_DIR}
-      cd ${PROJECT_DIR}
-      dvc pull
-
-      echo "Training on $(ls ${PROJECT_DIR}/data/images | wc -l) images"
-      python -u src/train.py \
-        --data_dir=${PROJECT_DIR}/data/images \
-        --annotation_csv=${PROJECT_DIR}/data/annotations.csv \
-      || sleep infinity
+        default: ${{ git.branch }}-experiment
 
   deploy_inference_platform:
     image: ${{ images.inference.ref }}
@@ -374,7 +232,7 @@ jobs:
       DATA_DIR: ${{ volumes.remote_dataset.mount }}/bone-age-tiny/
       PYTHONPATH: ${{ volumes.src.mount }}/..
     # Job URI: https://ml-recipe-bone-age-test-inference--yevheniisemendiak.jobs.default.org.neu.ro/api/v1.0/predictions
-    # Seldon URI: https://seldon.onprem-poc.org.neu.ro/seldon/seldon/my-model/api/v1.0/predictions
+    # Seldon URI: https://seldon.onprem-poc.org.neu.ro/seldon/seldon/bone-age-predictor-staging/api/v1.0/predictions
     cmd: |
       -f ${{ volumes.src.mount }}/locust.py --users 1 --spawn-rate 1 --web-port 8080
 

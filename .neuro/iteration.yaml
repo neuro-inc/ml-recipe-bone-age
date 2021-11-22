@@ -1,0 +1,53 @@
+kind: batch
+#  One iteration includes the following actions:
+#    1. Add several annotated images to the dataset in DVC.
+#    2. Run MLFlow tracking server if not running.
+#    3. Perform training on the extended dataset and store results into MLFlow.
+#    4. Launch test inference job.
+#    5. Launch Locust load generator.
+
+params:
+  src_git_branch: ys/batch_mode
+  tgt_git_branch: ys/batch_mode-experiment
+  extend_by: 30
+  # train parameters
+  train_preset: gpu-k80-small-p
+  # inference parameters
+  inference_preset: gpu-k80-small-p
+  # dataset parameters
+  dataset_url: http://data.neu.ro/bone-age-tiny.zip
+  force_redownload: "" # set it to be non-empty string if redownload is needed
+
+tasks:
+  - id: prepare_remote_dataset
+    mixins: [ prepare_remote_dataset ]
+    env:
+      DATASET_URL: ${{ params.dataset_url }}
+      FORCE: ${{ params.force_redownload }}
+
+
+  - id: prepare_git
+    mixins: [ prepare_git ]
+    env:
+      GIT_BRANCH: ${{ params.src_git_branch }}
+      CREATE_GIT_BRANCH: ${{ params.tgt_git_branch }}
+
+  - id: extend_data
+    mixins: [ extend_data ]
+    needs: [ prepare_remote_dataset, prepare_git ]
+    env:
+      EXTEND_DATASET_BY: ${{ params.extend_by }}
+      GIT_BRANCH: ${{ params.tgt_git_branch }}
+
+  - id: mlflow_server
+    needs: [ ]
+    action: ws:.neuro/ensure_mlflow_running.yaml
+
+  - id: train
+    mixins: [ train ]
+    needs: [ prepare_git, mlflow_server ] 
+      # - extend_data
+    preset: ${{ params.train_preset }}
+    env:
+      MLFLOW_TRACKING_URI: "http://${{ needs.mlflow_server.outputs.server_hostname }}:5000"
+      GIT_BRANCH: ${{ params.tgt_git_branch }}

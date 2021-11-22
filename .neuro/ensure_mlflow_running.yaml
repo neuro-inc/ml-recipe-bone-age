@@ -1,0 +1,19 @@
+kind: local
+
+outputs:
+  server_hostname:
+    descr: something
+
+bash: |
+  get_state_cmd="neuro-flow status mlflow_server | grep 'Status' -m 1 | awk '{print \$2}'"
+  state=`eval $get_state_cmd`
+  while [ $state != running ]
+  do
+    case $state in
+        pending|suspended) sleep 1 ;;
+        *) neuro-flow run mlflow_server ;;
+    esac
+    state=`eval $get_state_cmd`
+  done
+  hostname=`neuro-flow status mlflow_server | grep "Internal Hostname Named" | awk '{print $4}'`
+  echo "::set-output name=server_hostname::$hostname"
